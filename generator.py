@@ -2,7 +2,6 @@ import numpy as np
 import networkx as nx
 from engine import build_weight_matrix
 from scipy.stats import halfnorm
-import math
 from itertools import combinations
 import random
 
@@ -15,12 +14,12 @@ def generator(type, C, N, weight_dist=None, **kwargs):
     ---
     type : str
         Must be either:
-            - "control" (G,n,p random)
-            - "hierarchy" (Tree with branching factor C, descending weights of step size S, and
-            further edges probabilistically added between leaves based on relatedness to bring
-            mean degree in line with C)
-            - "alternative" (Custom degree-controlled SBM with # communities
-            n_comms and in/out connection probabilities i_prob and o_prob)
+        - "control" (G,n,p random)
+        - "hierarchy" (Tree with branching factor C, descending weights of step size S, and
+        further edges probabilistically added between leaves based on relatedness to bring
+        mean degree in line with C)
+        - "alternative" (Custom degree-controlled SBM with # communities
+        n_comms and in/out connection probabilities i_prob and o_prob)
     C : int or float
         Center of degree distribution.
     N : int
@@ -28,9 +27,9 @@ def generator(type, C, N, weight_dist=None, **kwargs):
     weight_dist : str
         Type of distribution to draw weights from if heterogeneity desired
         and type is not hierarchy. Options:
-            - "uniform" (standard uniform distribution between 0 and 10)
-            - "powerlaw" (power-law distribution with decay "a")
-            - "normal" (right-tailed normal distribution centered at 1 with std dev "scale")
+        - "uniform" (standard uniform distribution between 0 and 10)
+        - "powerlaw" (power-law distribution with decay "a")
+        - "normal" (right-tailed normal distribution centered at 1 with std dev "scale")
     **kwargs : Keyword arguments passed to:
         - np.random.pareto (a = 2)
         - halfnorm.rvs (scale = 5)
@@ -39,7 +38,7 @@ def generator(type, C, N, weight_dist=None, **kwargs):
 
     Returns
     ---
-    graph : (N, N) row-stochastic array
+    (N, N) row-stochastic array
         Normalized weighted adjacency matrix.
     '''
     # unpacking kwargs
@@ -59,10 +58,10 @@ def generator(type, C, N, weight_dist=None, **kwargs):
         candidates = []
         while True:
             base = int((b**(h+1) - 1) / (b - 1))
-            if base - b**h * b > N + N:  # gone far enough
-                break
             for k in range(0, b**h + 1):
                 candidates.append(base + k * b)
+            if base > 2 * N:
+                break
             h += 1
         return min(candidates, key=lambda x: abs(x - N))
 
@@ -128,7 +127,7 @@ def generator(type, C, N, weight_dist=None, **kwargs):
             b = C-1 # branching factor
 
             # building initial graph
-            G = nx.DiGraph() # init as directed for easier lookup
+            G = nx.DiGraph()
             G.add_node(0) # root
             queue = [0]
             next_id = 1
@@ -141,32 +140,8 @@ def generator(type, C, N, weight_dist=None, **kwargs):
                     queue.append(next_id)
                     next_id += 1
 
-            # leaves have deg 0 in directed case
+            # leaves have out-deg 0
             leaves = {n for n, degree in G.out_degree() if degree == 0}
-            branches = {n for n, degree in G.out_degree() if degree > 0}
-
-             # --- branch:leaf descendants mapping ---
-
-            # recursive function to find all leaf descendants
-            memo = {}
-            def get_leaf_descendants(node):
-                if node in memo:
-                    return memo[node]
-                
-                # if node is a leaf, it is its own descendant
-                if node in leaves:
-                    return {node}
-                
-                # recursive case: goes down the chain until it finds the leaves
-                all_leaves = set()
-                for child in G.successors(node):
-                    all_leaves.update(get_leaf_descendants(child))
-                
-                memo[node] = all_leaves
-                return all_leaves
-
-            # generate the final mapping
-            branch_to_leaves = {b: list(get_leaf_descendants(b)) for b in branches}
 
             # --- node:level mapping ---
 
@@ -181,20 +156,33 @@ def generator(type, C, N, weight_dist=None, **kwargs):
 
             # determining probabilities
             Pd = 0.5 # probability decay parameter (controls shape of distribution)
-            def edge_prob(i, j):
-                LCA = nx.lowest_common_ancestor(G, i, j)
-                LCA_level = nodes_to_level[LCA]
-                return Pd**LCA_level
-            
-            # adding only enough edges to match density
-            sample = random.sample(list(combinations(leaves, 2)), b**h/2)
-            for u, v in sample:
-                if G.has_edge(u, v) == False: # skip existing edges
-                    if random.random() < edge_prob(u, v):
-                        G.add_edge(u, v)
+            # all non-sibling leaf pairs as candidates
+            candidates = [(u, v) for u, v in combinations(leaves, 2)
+                        if not G.has_edge(u, v)]
 
-            # extracting adj matrix
-            adj = nx.to_numpy_array(G, nodelist=sorted(G.nodes())) # ensuring order
+            # weight each by hierarchical distance
+            weights = np.array([
+                Pd ** nodes_to_level[nx.lowest_common_ancestor(G, u, v)]
+                for u, v in candidates
+            ])
+
+            # normalize to probability distribution
+            weights /= weights.sum()
+
+            # draw exactly the right number without replacement
+            n_needed = int(b**h // 2)
+            chosen_indices = np.random.choice(
+                len(candidates), size=n_needed, replace=False, p=weights
+            )
+
+            # add the chosen edges
+            for idx in chosen_indices:
+                u, v = candidates[idx]
+                G.add_edge(u, v)
+
+            # converting back to undirected and extracting adj matrix
+            G_u = G.to_undirected()
+            adj = nx.to_numpy_array(G_u, nodelist=sorted(G.nodes())) # ensuring order
 
             # --- applying weights ---
 
