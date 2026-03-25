@@ -127,8 +127,7 @@ def generator(
             return adj, weights
 
         else:
-            print("Error: Invalid type.")
-            return None, None
+            raise ValueError(f"Unsupported graph type: {type}. Expected 'control', 'hierarchy', or 'alternative'.")
     
     else:
         def build_tree(S):
