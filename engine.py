@@ -29,7 +29,8 @@ graphs like trees).
 
 import numpy as np
 from numpy.typing import NDArray
-
+from scipy.sparse.linalg import eigs
+from scipy.sparse import csr_matrix
 
 def build_weight_matrix(
     adjacency: NDArray[np.float64],
@@ -176,7 +177,9 @@ def compute_spectral_gap(W: NDArray[np.float64]) -> dict:
             Estimated steps to reach threshold 1e-6, computed as
             log(1e-6) / log(|λ₂|). Returns inf if |λ₂| >= 1.
     """
-    eigenvalues = np.linalg.eigvals(W)
+    # convert to sparse for faster performance
+    W_sparse = csr_matrix(W)
+    eigenvalues = eigs(W_sparse, k=2)
 
     # Sort by modulus, descending
     # used to deal with eigenvalues that are complex numbers

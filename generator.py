@@ -1,11 +1,17 @@
 import numpy as np
 import networkx as nx
-from engine import build_weight_matrix
 from scipy.stats import halfnorm
 from itertools import combinations
-import random
+from numpy.typing import NDArray
+from typing import Tuple, Optional
 
-def generator(type, C, N, weight_dist=None, **kwargs):
+def generator(
+    type: str, 
+    C: int | float, 
+    N: int | np.integer,
+    weight_dist: Optional[str] = None,
+    **kwargs
+) -> Tuple[NDArray, NDArray]:
     ''' 
     Function to generate a graph of type "type" with mean C of standard normal
     degree-distribution and size N.
@@ -38,8 +44,10 @@ def generator(type, C, N, weight_dist=None, **kwargs):
 
     Returns
     ---
-    (N, N) row-stochastic array
-        Normalized weighted adjacency matrix.
+    (N, N) binary array
+        Adjacency matrix.
+    (N,) vector array
+        Node weights.
     '''
     # unpacking kwargs
     a = kwargs.get('a', 2.0)
@@ -90,7 +98,7 @@ def generator(type, C, N, weight_dist=None, **kwargs):
             p = C / N # enforcing degree distribution
             G = nx.erdos_renyi_graph(N, p)
             adj = nx.to_numpy_array(G)
-            return build_weight_matrix(adj, weights)
+            return adj, weights
 
         elif type == 'alternative':
             def build_alt(i_prob=i_prob, o_prob=o_prob, n_comms=n_comms):
@@ -116,11 +124,11 @@ def generator(type, C, N, weight_dist=None, **kwargs):
                 # flip coin for every possible edge simultaneously and assign 0 or 1
                 return (np.random.rand(N, N) < probs).astype(np.float64)
             adj = build_alt()
-            return build_weight_matrix(adj, weights)
+            return adj, weights
 
         else:
             print("Error: Invalid type.")
-            return None
+            return None, None
     
     else:
         def build_tree(S):
@@ -199,9 +207,8 @@ def generator(type, C, N, weight_dist=None, **kwargs):
                 node_to_weight[node] = level_to_weight[level]
             
             # convert to array (sorting by node for consistency with adj)
-            weights = np.array([w for n, w in sorted(node_to_weight.items())])
+            weights = np.array([w for _, w in sorted(node_to_weight.items())])
 
             return adj, weights
         
-        adj, w = build_tree(S)
-        return build_weight_matrix(adj, w)
+        return build_tree(S)
