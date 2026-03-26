@@ -1,55 +1,79 @@
 import numpy as np
 import networkx as nx
-from scipy.stats import halfnorm
 from itertools import combinations
 from numpy.typing import NDArray
 from typing import Tuple, Optional
 
+
+def _ensure_connected(adj: NDArray, rng: np.random.Generator) -> NDArray:
+    """Add minimal random edges to connect all components."""
+    G = nx.from_numpy_array(adj)
+    components = list(nx.connected_components(G))
+    if len(components) <= 1:
+        return adj
+    adj = adj.copy()
+    for i in range(len(components) - 1):
+        u = rng.choice(sorted(components[i]))
+        v = rng.choice(sorted(components[i + 1]))
+        adj[u, v] = 1.0
+        adj[v, u] = 1.0
+    return adj
+
+
 def generator(
-    type: str, 
-    C: int | float, 
+    graph_type: str,
+    C: int | float,
     N: int | np.integer,
     weight_dist: Optional[str] = None,
+    rng: Optional[np.random.Generator] = None,
     **kwargs
 ) -> Tuple[NDArray, NDArray]:
-    ''' 
-    Function to generate a graph of type "type" with mean C of standard normal
-    degree-distribution and size N.
+    '''
+    Generate a graph of type `graph_type` with target mean degree C and size N.
 
     Args
     ---
-    type : str
+    graph_type : str
         Must be either:
-        - "control" (G,n,p random)
-        - "hierarchy" (Tree with branching factor C, descending weights of step size S, and
-        further edges probabilistically added between leaves based on relatedness to bring
-        mean degree in line with C)
-        - "alternative" (Custom degree-controlled SBM with # communities
-        n_comms and in/out connection probabilities i_prob and o_prob)
+        - "control" (Erdos-Renyi random graph)
+        - "hierarchy" (Tree with branching factor C-1, descending weights of
+          step size S, and further edges probabilistically added between leaves
+          based on relatedness to bring mean degree in line with C)
+        - "alternative" (Degree-corrected SBM with n_comms communities and
+          in/out connection probabilities i_prob and o_prob)
     C : int or float
-        Center of degree distribution.
+        Target mean degree.
     N : int
         Size of the graph.
-    weight_dist : str
-        Type of distribution to draw weights from if heterogeneity desired
-        and type is not hierarchy. Options:
-        - "uniform" (standard uniform distribution between 0 and 10)
-        - "powerlaw" (power-law distribution with decay "a")
-        - "normal" (right-tailed normal distribution centered at 1 with std dev "scale")
-    **kwargs : Keyword arguments passed to:
-        - np.random.pareto (a = 2)
-        - halfnorm.rvs (scale = 5)
-        - build_alt (i_prob = 0.2, o_prob = 0.8, n_comms = 8)
-        - build_tree (S = 1)
+    weight_dist : str, optional
+        Distribution for node influence weights (non-hierarchy types):
+        - "uniform" (Uniform(0, 10))
+        - "powerlaw" (Pareto with shape "a")
+        - "normal" (half-normal centered at 1 with std dev "sigma")
+        - None (all weights = 1)
+    rng : numpy.random.Generator, optional
+        Random number generator for reproducibility.
+    **kwargs : Keyword arguments:
+        - a (float): Pareto shape parameter (default 2.0)
+        - sigma (float): half-normal scale (default 5.0)
+        - i_prob (float): SBM within-community edge factor (default 0.8)
+        - o_prob (float): SBM between-community edge factor (default 0.2)
+        - n_comms (int): number of SBM communities (default 8)
+        - S (int): hierarchy weight step size (default 1)
 
     Returns
     ---
-    (N, N) binary array
-        Adjacency matrix.
-    (N,) vector array
-        Node weights.
+    adj : (N, N) binary array
+        Adjacency matrix (undirected, no self-loops).
+    weights : (N,) array
+        Node influence weights.
     '''
-    # unpacking kwargs
+    if rng is None:
+        rng = np.random.default_rng()
+
+    N = int(N)
+
+    # unpack kwargs
     a = kwargs.get('a', 2.0)
     scale = kwargs.get('sigma', 5.0)
     i_prob = kwargs.get('i_prob', 0.8)
@@ -57,10 +81,10 @@ def generator(
     n_comms = kwargs.get('n_comms', 8)
     S = kwargs.get('S', 1)
 
-    b = C-1 # branching factor
+    b = C - 1  # branching factor
 
     # N must be restricted to multiples of branching factor starting from the nearest full size in order for 
-    # hierarchical structure to maintain C. This function finds the closest valid size to chosen N
+    # hierarchical structure to maintain C. This function finds the closest valid size to chosen N.
     def size_transformer(b, N):
         h = 1
         candidates = []
@@ -76,138 +100,125 @@ def generator(
     # replace N with nearest valid size
     N_new = size_transformer(b, N)
     if N != N_new:
-        print(f"N rounded up to {N_new} to maintain C...") if N < N_new else print(f"N rounded down to {N_new} to maintain C...")
+        print(f"N rounded up to {N_new} to maintain C.") if N < N_new else print(f"N rounded down to {N_new} to maintain C.")
 
     N = N_new
 
-    # dynamically setting std dev of deg dist
-    deg_sigma = C/30 if C/30 >= 1 else 1
+    # dynamically set std dev of deg dist
+    deg_sigma = max(C / 30, 1.0)
 
-    if type != 'hierarchy':
-        # assign weights and build array
+    # --- non-hierarchy types ---
+    if graph_type != 'hierarchy':
+        # generate node weights
         if weight_dist == 'uniform':
-            weights = np.random.uniform(0.0, 10.0, N)
+            weights = rng.uniform(0.0, 10.0, N)
         elif weight_dist == 'powerlaw':
-            weights = np.random.pareto(a, N)
+            weights = rng.pareto(a, N)
         elif weight_dist == 'normal':
-            weights = halfnorm.rvs(loc=1.0, scale=scale, size=N)
+            weights = 1.0 + np.abs(rng.standard_normal(N)) * scale
         else:
             weights = np.full(N, 1.0)
 
-        if type == 'control':
-            p = C / N # enforcing degree distribution
-            G = nx.erdos_renyi_graph(N, p)
+        if graph_type == 'control':
+            p = C / N
+            G = nx.erdos_renyi_graph(N, p, seed=rng)
             adj = nx.to_numpy_array(G)
+            adj = _ensure_connected(adj, rng)
             return adj, weights
 
-        elif type == 'alternative':
-            def build_alt(i_prob=i_prob, o_prob=o_prob, n_comms=n_comms):
-                '''
-                Implements degree-corrected SBM to enforce weight distribution
-                '''
-                # calculate expected degrees
-                exp_deg = np.random.normal(C, deg_sigma, N)
-                exp_deg = np.clip(exp_deg, 1, None) # ensure deg >= 1
+        elif graph_type == 'alternative':
+            def build_alt():
+                exp_deg = rng.normal(C, deg_sigma, N)
+                exp_deg = np.clip(exp_deg, 1, None)
 
-                probs = np.zeros((N, N))
-                for i in range(N):
-                    for j in range(i + 1, N):
-                        # floor division to assign nodes to equally-sized communities
-                        comm_i = i // int((N/n_comms))
-                        comm_j = j // int((N/n_comms))
-                        # assign probs accordingly
-                        factor = i_prob if comm_i == comm_j else o_prob
-                        # calculate probability of edge between node i and j and normalize
-                        probs[i, j] = (exp_deg[i] * exp_deg[j] * factor) / (C * N)
-                # mirror to fill in both triangles
-                probs = probs + probs.T
-                # flip coin for every possible edge simultaneously and assign 0 or 1
-                return (np.random.rand(N, N) < probs).astype(np.float64)
+                # community assignments
+                comm_size = max(1, N // n_comms)
+                comm = np.arange(N) // comm_size
+                same_comm = comm[:, None] == comm[None, :]
+                factor = np.where(same_comm, i_prob, o_prob)
+
+                # edge probabilities
+                probs = np.outer(exp_deg, exp_deg) * factor / (C * N)
+
+                # undirected: draw upper triangle only, then mirror
+                upper = np.triu(rng.random((N, N)) < probs, k=1).astype(np.float64)
+                return upper + upper.T
+
             adj = build_alt()
+            adj = _ensure_connected(adj, rng)
             return adj, weights
 
         else:
-            raise ValueError(f"Unsupported graph type: {type}. Expected 'control', 'hierarchy', or 'alternative'.")
-    
+            raise ValueError(
+                f"Unsupported graph type: {graph_type}. "
+                "Expected 'control', 'hierarchy', or 'alternative'."
+            )
+
+    # --- hierarchy ---
     else:
         def build_tree(S):
-            b = C-1 # branching factor
-
-            # building initial graph
             G = nx.DiGraph()
-            G.add_node(0) # root
+            G.add_node(0)
             queue = [0]
             next_id = 1
             while next_id < N:
                 parent = queue.pop(0)
-                for _ in range(b): # repeat for all children
+                for _ in range(b): # type: ignore
                     if next_id >= N:
                         break
                     G.add_edge(parent, next_id)
                     queue.append(next_id)
                     next_id += 1
 
-            # leaves have out-deg 0
             leaves = {n for n, degree in G.out_degree() if degree == 0}
 
             # --- node:level mapping ---
-
             levels_dict = nx.shortest_path_length(G, source=0)
-            # reversing order so that probability calculation works correctly
             max_dist = max(levels_dict.values())
             nodes_to_level = {node: (max_dist - dist) for node, dist in levels_dict.items()}
 
-            h = int(max(levels_dict.values())) # store height as int
-
-            # --- adding new edges between leaves ---
-
-            # determining probabilities
-            Pd = 0.5 # probability decay parameter (controls shape of distribution)
-            # all non-sibling leaf pairs as candidates
+            # --- add edges between leaves to reach mean degree C ---
+            Pd = 0.5  # probability decay parameter
             candidates = [(u, v) for u, v in combinations(leaves, 2)
-                        if not G.has_edge(u, v)]
+                          if not G.has_edge(u, v)]
 
-            # weight each by hierarchical distance
-            weights = np.array([
+            # weight by hierarchical distance (closer relatives more likely)
+            edge_probs = np.array([
                 Pd ** nodes_to_level[nx.lowest_common_ancestor(G, u, v)]
                 for u, v in candidates
             ])
+            edge_probs /= edge_probs.sum()
 
-            # normalize to probability distribution
-            weights /= weights.sum()
+            # compute how many edges to add to reach target mean degree
+            tree_edges = N - 1
+            target_edges = int(C * N / 2)
+            n_needed = max(0, target_edges - tree_edges)
+            n_needed = min(n_needed, len(candidates))
 
-            # draw exactly the right number without replacement
-            n_needed = int(b**h // 2)
-            chosen_indices = np.random.choice(
-                len(candidates), size=n_needed, replace=False, p=weights
+            chosen_indices = rng.choice(
+                len(candidates), size=n_needed, replace=False, p=edge_probs
             )
 
-            # add the chosen edges
             for idx in chosen_indices:
                 u, v = candidates[idx]
                 G.add_edge(u, v)
 
-            # converting back to undirected and extracting adj matrix
+            # convert to undirected adjacency matrix
             G_u = G.to_undirected()
-            adj = nx.to_numpy_array(G_u, nodelist=sorted(G.nodes())) # ensuring order
+            adj = nx.to_numpy_array(G_u, nodelist=sorted(G.nodes()))
 
-            # --- applying weights ---
-
-            # weight-to-level dict
+            # --- descending weights by level ---
             level_to_weight = {}
             current_weight = 1
-            for level in sorted(set(nodes_to_level.values())): # reversed the order previously, so it should be leaves -> root
+            for level in sorted(set(nodes_to_level.values())):
                 level_to_weight[level] = current_weight
                 current_weight += S
 
-            # assign node weights accordingly
-            node_to_weight = {}
-            for node, level in nodes_to_level.items():
-                node_to_weight[node] = level_to_weight[level]
-            
-            # convert to array (sorting by node for consistency with adj)
-            weights = np.array([w for _, w in sorted(node_to_weight.items())])
+            node_weights = np.array([
+                level_to_weight[nodes_to_level[node]]
+                for node in sorted(nodes_to_level.keys())
+            ])
 
-            return adj, weights
-        
+            return adj, node_weights
+
         return build_tree(S)
