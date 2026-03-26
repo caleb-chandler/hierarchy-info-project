@@ -40,7 +40,7 @@ os.makedirs(save_dir, exist_ok=True)
 if weight_dist:
     print(f"Simulating for C={C}, weight_dist={weight_dist}, {n_trials} trials")
 else:
-    print(f"Simulating for C={C}, uniform weights, {n_trials} trials")
+    print(f"Simulating for C={C}, {n_trials} trials")
 
 for strc in structures:
     results_bag = {}
@@ -51,7 +51,7 @@ for strc in structures:
 
         for t in range(n_trials):
             adj, w = generator(strc, C, int(N), weight_dist=weight_dist, rng=graph_rng)
-            result = run_trial(adj, w, rng=dynamics_rng)
+            result = run_trial(adj, w, rng=dynamics_rng, max_steps=50_000)
 
             trials.append({
                 'consensus_time': result['consensus_time'],
