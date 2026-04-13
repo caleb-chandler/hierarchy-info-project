@@ -53,6 +53,97 @@ def _ensure_connected(adj: NDArray, rng: np.random.Generator) -> NDArray:
     return adj
 
 
+def make_weights(
+    N: int,
+    weight_dist: Optional[str],
+    rng: np.random.Generator,
+    a: float = 2.0,
+    sigma: float = 5.0,
+    S: Optional[float] = None,
+    depth: Optional[NDArray] = None,
+    max_depth: Optional[int] = None,
+) -> NDArray[np.float64]:
+    """
+    Generate node influence weights.  Shared by all topologies.
+
+    Parameters
+    ----------
+    N : int
+        Number of nodes.
+    weight_dist : str or None
+        None        -> all ones (equal influence)
+        'uniform'   -> U(1, 10)
+        'normal'    -> 1 + |N(0, sigma)|
+        'powerlaw'  -> Pareto(a) + 1
+        'stepped'   -> deterministic linear-in-depth (hierarchy only;
+                       flat topologies fall back to all ones)
+    rng : Generator
+    a : float
+        Pareto shape parameter (default 2.0).
+    sigma : float
+        Half-normal scale (default 5.0).
+    S : float or None
+        Step size for 'stepped' mode. If None, auto-computed so that
+        root weight / leaf weight ≈ 2*sigma + 1 (matching the ~95th
+        percentile of the half-normal distribution used by 'normal').
+    depth : array, optional
+        Per-node depth in the tree (0 = root). Provided only by the
+        hierarchy branch.
+    max_depth : int, optional
+        Maximum depth of the tree.
+
+    Returns
+    -------
+    weights : (N,) float64 array, all positive.
+
+    Notes
+    -----
+    For the stochastic distributions ('uniform', 'normal', 'powerlaw')
+    on hierarchy (when depth is provided): weights are drawn iid from
+    the target distribution, then sorted so that higher-level nodes
+    receive higher weights.  This preserves the marginal distribution
+    (same histogram as the flat topologies) while correlating influence
+    with structural position.
+    """
+    # --- trivial case: equal weights ---
+    if weight_dist is None:
+        return np.full(N, 1.0)
+
+    # --- deterministic depth-based weights ---
+    if weight_dist == 'stepped':
+        if depth is None or max_depth is None or max_depth == 0:
+            return np.full(N, 1.0)
+        reversed_depth = max_depth - depth
+        if S is None:
+            # auto-scale: root ≈ 1 + 2*sigma, leaf = 1
+            S = (2.0 * sigma) / max_depth
+        return 1.0 + reversed_depth.astype(np.float64) * S
+
+    # --- stochastic distributions ---
+    if weight_dist == 'uniform':
+        w = rng.uniform(1.0, 10.0, N)
+    elif weight_dist == 'normal':
+        w = 1.0 + np.abs(rng.standard_normal(N)) * sigma
+    elif weight_dist == 'powerlaw':
+        w = rng.pareto(a, N) + 1.0
+    else:
+        raise ValueError(
+            f"Unknown weight_dist '{weight_dist}'. "
+            "Expected None, 'uniform', 'normal', 'powerlaw', or 'stepped'."
+        )
+
+    # for hierarchy: sort so higher-level nodes get higher weights
+    if depth is not None and max_depth is not None:
+        sorted_w = np.sort(w)[::-1]                  # descending values
+        reversed_depth = max_depth - depth
+        rank_order = np.argsort(-reversed_depth, kind='stable')  # root first
+        out = np.empty(N, dtype=np.float64)
+        out[rank_order] = sorted_w
+        return out
+
+    return w
+
+
 def generator(
     graph_type: str,
     C: int | float,
@@ -70,28 +161,32 @@ def generator(
     Args
     ---
     graph_type : str
-        "control"       – random regular graph (exact degree C)
-        "alternative"   – Watts-Strogatz small-world graph
-        "hierarchy"     – b-ary tree with probabilistic leaf-to-leaf edges
+        "control"       - random regular graph (exact degree C)
+        "alternative"   - Watts-Strogatz small-world graph
+        "hierarchy"     - b-ary tree with probabilistic leaf-to-leaf edges
     C : int or float
         Target mean degree.  Must be even (Watts-Strogatz requirement).
     N : int
         Size of the graph. Should already be a valid tree size.
-    weight_dist : str, optional
-        Node weight distribution for non-hierarchy types:
-        "uniform", "powerlaw", "normal", or None (all ones).
+    weight_dist : str or None
+        Node weight distribution (shared by all topologies):
+        None        -> all ones (equal influence)
+        'uniform'   -> U(1, 10)
+        'normal'    -> 1 + |N(0, sigma)|
+        'powerlaw'  -> Pareto(a) + 1
+        'stepped'   -> deterministic by tree depth (hierarchy only)
     rng : numpy.random.Generator, optional
     **kwargs :
-        a (float): Pareto shape (default 2.0)
-        sigma (float): half-normal scale (default 5.0)
+        a (float):        Pareto shape (default 2.0)
+        sigma (float):    half-normal scale (default 5.0)
+        S (float):        stepped weight step size; auto-computed if None
         p_rewire (float): WS rewiring probability (default 0.1)
-        S (int): hierarchy weight step size (default 1)
-        Pd (float): hierarchy edge probability decay (default 0.5)
+        Pd (float):       hierarchy edge probability decay (default 0.5)
 
     Returns
     ---
     adj : (N, N) binary ndarray, undirected, no self-loops
-    weights : (N,) ndarray of node influence weights
+    weights : (N,) ndarray of node influence weights (all positive)
     '''
     if rng is None:
         rng = np.random.default_rng()
@@ -100,23 +195,15 @@ def generator(
 
     # unpack kwargs
     a = kwargs.get('a', 2.0)
-    scale = kwargs.get('sigma', 5.0)
+    sigma = kwargs.get('sigma', 5.0)
+    S = kwargs.get('S', None)
     p_rewire = kwargs.get('p_rewire', 0.1)
-    S = kwargs.get('S', 1)
     Pd = kwargs.get('Pd', 0.5)
 
     b = int(C - 1)  # branching factor
 
-    # --- weight generation (shared by control & alternative) ---
-    def make_weights(N):
-        if weight_dist == 'uniform':
-            return rng.uniform(0.0, 10.0, N)
-        elif weight_dist == 'powerlaw':
-            return rng.pareto(a, N)
-        elif weight_dist == 'normal':
-            return 1.0 + np.abs(rng.standard_normal(N)) * scale
-        else:
-            return np.full(N, 1.0)
+    # shared weight kwargs for flat topologies (no depth info)
+    wt_kw = dict(weight_dist=weight_dist, rng=rng, a=a, sigma=sigma)
 
     # -----------------------------------------------------------------
     # CONTROL: random regular graph (every node has exactly degree C)
@@ -124,19 +211,17 @@ def generator(
     if graph_type == 'control':
         G = nx.random_regular_graph(int(C), N, seed=rng)
         adj = nx.to_numpy_array(G)
-        return adj, make_weights(N)
+        return adj, make_weights(N, **wt_kw)  # ty: ignore
 
     # -----------------------------------------------------------------
     # ALTERNATIVE: Watts-Strogatz small-world
     # -----------------------------------------------------------------
     elif graph_type == 'alternative':
-        # k = number of nearest neighbours in ring lattice (= mean degree, must be even)
         k = int(C)
         G = nx.watts_strogatz_graph(N, k, p_rewire, seed=rng)
         adj = nx.to_numpy_array(G)
-        # WS with k>=4 is almost always connected; belt-and-suspenders:
         adj = _ensure_connected(adj, rng)
-        return adj, make_weights(N)
+        return adj, make_weights(N, **wt_kw)  # ty: ignore
 
     # -----------------------------------------------------------------
     # HIERARCHY: b-ary tree + relatedness-weighted leaf edges
@@ -144,7 +229,6 @@ def generator(
     elif graph_type == 'hierarchy':
 
         # --- build tree structure arithmetically ---
-        # BFS-ordered b-ary tree: parent(n) = (n-1) // b
         parent_arr = np.full(N, -1, dtype=np.intp)
         depth = np.zeros(N, dtype=np.intp)
         for n in range(1, N):
@@ -153,7 +237,6 @@ def generator(
 
         max_depth = int(depth.max())
 
-        # identify leaves (nodes whose first potential child >= N)
         has_child = np.zeros(N, dtype=bool)
         has_child[parent_arr[1:]] = True
         leaves = np.where(~has_child)[0]
@@ -168,7 +251,7 @@ def generator(
             shape=(N, N)
         )
 
-        # --- add edges between leaves to reach target mean degree ---
+        # --- add leaf-to-leaf edges to reach target mean degree ---
         tree_edges = N - 1
         target_edges = int(C * N / 2)
         n_needed = max(0, target_edges - tree_edges)
@@ -177,7 +260,6 @@ def generator(
         new_cols = []
 
         if n_needed > 0:
-            # precompute leaf descendants per node (bottom-up)
             leaves_under = {}
             for lf in leaves:
                 leaves_under[int(lf)] = [int(lf)]
@@ -188,9 +270,6 @@ def generator(
                         acc.extend(leaves_under.get(c, []))
                     leaves_under[n] = acc
 
-            # two-level sampling setup:
-            # for each internal node v, compute
-            #   weight = Pd^(max_depth - depth[v]) * num_cross_subtree_leaf_pairs
             internal_nodes = []
             sampling_weights = []
             child_leaf_lists = []
@@ -231,7 +310,8 @@ def generator(
                 if len(new_rows) >= n_needed:
                     break
                 sampled = rng.choice(
-                    len(internal_nodes), size=batch, replace=True, p=sampling_weights
+                    len(internal_nodes), size=batch, replace=True,
+                    p=sampling_weights
                 )
                 for idx in sampled:
                     if len(new_rows) >= n_needed:
@@ -267,17 +347,11 @@ def generator(
 
         adj = np.asarray(full_adj.todense()).clip(0, 1)
 
-        # --- descending weights by level ---
-        reversed_depth = max_depth - depth
-        level_to_weight = {}
-        current_weight = 1
-        for level in range(max_depth + 1):
-            level_to_weight[level] = current_weight
-            current_weight += S
-
-        node_weights = np.array(
-            [level_to_weight[reversed_depth[n]] for n in range(N)],
-            dtype=np.float64
+        # --- weights: use shared make_weights with depth info ---
+        node_weights = make_weights(
+            N, weight_dist=weight_dist, rng=rng,
+            a=a, sigma=sigma, S=S,
+            depth=depth, max_depth=max_depth,
         )
 
         return adj, node_weights
