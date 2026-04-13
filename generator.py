@@ -70,9 +70,11 @@ def generator(
     Args
     ---
     graph_type : str
-        "control", "hierarchy", or "alternative"
+        "control"       – random regular graph (exact degree C)
+        "alternative"   – Watts-Strogatz small-world graph
+        "hierarchy"     – b-ary tree with probabilistic leaf-to-leaf edges
     C : int or float
-        Target mean degree.
+        Target mean degree.  Must be even (Watts-Strogatz requirement).
     N : int
         Size of the graph. Should already be a valid tree size.
     weight_dist : str, optional
@@ -82,9 +84,7 @@ def generator(
     **kwargs :
         a (float): Pareto shape (default 2.0)
         sigma (float): half-normal scale (default 5.0)
-        i_prob (float): SBM within-community factor (default 0.8)
-        o_prob (float): SBM between-community factor (default 0.2)
-        n_comms (int): SBM community count (default 8)
+        p_rewire (float): WS rewiring probability (default 0.1)
         S (int): hierarchy weight step size (default 1)
         Pd (float): hierarchy edge probability decay (default 0.5)
 
@@ -101,14 +101,11 @@ def generator(
     # unpack kwargs
     a = kwargs.get('a', 2.0)
     scale = kwargs.get('sigma', 5.0)
-    i_prob = kwargs.get('i_prob', 0.8)
-    o_prob = kwargs.get('o_prob', 0.2)
-    n_comms = kwargs.get('n_comms', 8)
+    p_rewire = kwargs.get('p_rewire', 0.1)
     S = kwargs.get('S', 1)
     Pd = kwargs.get('Pd', 0.5)
 
     b = int(C - 1)  # branching factor
-    deg_sigma = max(C / 30, 1.0)
 
     # --- weight generation (shared by control & alternative) ---
     def make_weights(N):
@@ -122,36 +119,22 @@ def generator(
             return np.full(N, 1.0)
 
     # -----------------------------------------------------------------
-    # CONTROL: Erdos-Renyi
+    # CONTROL: random regular graph (every node has exactly degree C)
     # -----------------------------------------------------------------
     if graph_type == 'control':
-        p = C / N
-        G = nx.erdos_renyi_graph(N, p, seed=rng)
+        G = nx.random_regular_graph(int(C), N, seed=rng)
         adj = nx.to_numpy_array(G)
-        adj = _ensure_connected(adj, rng)
         return adj, make_weights(N)
 
     # -----------------------------------------------------------------
-    # ALTERNATIVE: degree-corrected SBM
+    # ALTERNATIVE: Watts-Strogatz small-world
     # -----------------------------------------------------------------
     elif graph_type == 'alternative':
-        exp_deg = rng.normal(C, deg_sigma, N)
-        exp_deg = np.clip(exp_deg, 1, None)
-
-        comm_size = max(1, N // n_comms)
-        comm = np.arange(N) // comm_size
-        same_comm = comm[:, None] == comm[None, :]
-        factor = np.where(same_comm, i_prob, o_prob)
-
-        raw_probs = np.outer(exp_deg, exp_deg) * factor
-        # scale so expected total edges = C*N/2 (target mean degree C)
-        upper_raw = np.triu(raw_probs, k=1)
-        scale = (C * N / 2) / upper_raw.sum()
-        probs = np.clip(raw_probs * scale, 0, 1)
-
-        # undirected: draw upper triangle only, then mirror
-        upper = np.triu(rng.random((N, N)) < probs, k=1).astype(np.float64)
-        adj = upper + upper.T
+        # k = number of nearest neighbours in ring lattice (= mean degree, must be even)
+        k = int(C)
+        G = nx.watts_strogatz_graph(N, k, p_rewire, seed=rng)
+        adj = nx.to_numpy_array(G)
+        # WS with k>=4 is almost always connected; belt-and-suspenders:
         adj = _ensure_connected(adj, rng)
         return adj, make_weights(N)
 
@@ -210,7 +193,7 @@ def generator(
             #   weight = Pd^(max_depth - depth[v]) * num_cross_subtree_leaf_pairs
             internal_nodes = []
             sampling_weights = []
-            child_leaf_lists = []  # cl[i] = list of leaf-arrays per child subtree
+            child_leaf_lists = []
 
             for v in np.where(has_child)[0]:
                 children = list(range(v * b + 1, min(v * b + b + 1, N)))
@@ -219,7 +202,6 @@ def generator(
                 if len(cl) < 2:
                     continue
 
-                # count cross-subtree pairs
                 sizes = [len(lst) for lst in cl]
                 total_pairs = 0
                 for i in range(len(sizes)):
@@ -237,13 +219,11 @@ def generator(
             sampling_weights = np.array(sampling_weights)
             sampling_weights /= sampling_weights.sum()
 
-            # collect existing edges to avoid duplicates
             edge_set = set()
             for n in range(1, N):
                 p_n = parent_arr[n]
                 edge_set.add((min(n, p_n), max(n, p_n)))
 
-            # sample edges: pick LCA node, then two leaves from different subtrees
             batch = max(n_needed * 3, 1000)
             max_attempts = 20
 
@@ -258,17 +238,14 @@ def generator(
                         break
                     cl = child_leaf_lists[idx]
                     sizes = np.array([len(lst) for lst in cl], dtype=float)
-                    # pick first subtree weighted by size
                     p1 = sizes / sizes.sum()
                     ci = rng.choice(len(cl), p=p1)
-                    # pick second subtree from remainder
                     s2 = sizes.copy()
                     s2[ci] = 0
                     if s2.sum() == 0:
                         continue
                     s2 /= s2.sum()
                     cj = rng.choice(len(cl), p=s2)
-                    # pick one leaf from each subtree
                     u = int(rng.choice(cl[ci]))
                     v = int(rng.choice(cl[cj]))
                     edge = (min(u, v), max(u, v))
@@ -277,7 +254,6 @@ def generator(
                         new_rows.append(edge[0])
                         new_cols.append(edge[1])
 
-        # assemble full adjacency
         if new_rows:
             extra_r = np.array(new_rows + new_cols)
             extra_c = np.array(new_cols + new_rows)
@@ -292,7 +268,6 @@ def generator(
         adj = np.asarray(full_adj.todense()).clip(0, 1)
 
         # --- descending weights by level ---
-        # reversed depth: leaves=0, root=max_depth
         reversed_depth = max_depth - depth
         level_to_weight = {}
         current_weight = 1
@@ -310,5 +285,5 @@ def generator(
     else:
         raise ValueError(
             f"Unsupported graph type: {graph_type}. "
-            "Expected 'control', 'hierarchy', or 'alternative'."
+            "Expected 'control', 'alternative', or 'hierarchy'."
         )
