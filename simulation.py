@@ -9,7 +9,7 @@ C = 6
 b = int(C - 1)  # branching factor
 N_MIN, N_MAX = 10, 10_000
 N_POINTS = 20  # approximate number of sizes to test
-weight_dist = None
+weight_dist = 'skewed'
 n_trials = 20
 
 structures = ['control', 'alternative', 'hierarchy']
@@ -33,7 +33,8 @@ graph_rng = np.random.default_rng(21)
 dynamics_rng = np.random.default_rng(42)
 
 # --- output directory ---
-save_dir = f'results/C_{C}'
+dist_label = weight_dist or 'equal'
+save_dir = f'results/inf_distr/{dist_label}/C_{C}'
 os.makedirs(save_dir, exist_ok=True)
 
 # --- run ---
@@ -52,7 +53,7 @@ for strc in structures:
 
         for t in range(n_trials):
             adj, w = generator(strc, C, int(
-                N), weight_dist=weight_dist, rng=graph_rng)
+                N), weight_dist=weight_dist, rng=graph_rng, sigma=1.2)
             result = run_trial(adj, w, rng=dynamics_rng, max_steps=50_000)
 
             trials.append({
@@ -64,6 +65,7 @@ for strc in structures:
                 'final_disagreement': result['final_disagreement'],
                 'consensus_value': result['consensus_value'],
                 'N_actual': adj.shape[0],
+                'used_dense_fallback': result.get('used_dense_fallback', False),
             })
 
         results_bag[int(N)] = trials

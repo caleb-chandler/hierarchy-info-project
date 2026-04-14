@@ -57,8 +57,7 @@ def make_weights(
     N: int,
     weight_dist: Optional[str],
     rng: np.random.Generator,
-    a: float = 2.0,
-    sigma: float = 5.0,
+    sigma: float = 1.2,
     S: Optional[float] = None,
     depth: Optional[NDArray] = None,
     max_depth: Optional[int] = None,
@@ -74,7 +73,7 @@ def make_weights(
         None        -> all ones (equal influence)
         'uniform'   -> U(1, 10)
         'normal'    -> 1 + |N(0, sigma)|
-        'powerlaw'  -> Pareto(a) + 1
+        'skewed'  -> mean 0
         'stepped'   -> deterministic linear-in-depth (hierarchy only;
                        flat topologies fall back to all ones)
     rng : Generator
@@ -124,8 +123,8 @@ def make_weights(
         w = rng.uniform(1.0, 10.0, N)
     elif weight_dist == 'normal':
         w = 1.0 + np.abs(rng.standard_normal(N)) * sigma
-    elif weight_dist == 'powerlaw':
-        w = rng.pareto(a, N) + 1.0
+    elif weight_dist == 'skewed':
+        w = rng.lognormal(mean=0.0, sigma=sigma, size=N)
     else:
         raise ValueError(
             f"Unknown weight_dist '{weight_dist}'. "
@@ -195,7 +194,7 @@ def generator(
 
     # unpack kwargs
     a = kwargs.get('a', 2.0)
-    sigma = kwargs.get('sigma', 5.0)
+    sigma = kwargs.get('sigma', 1.2)
     S = kwargs.get('S', None)
     p_rewire = kwargs.get('p_rewire', 0.1)
     Pd = kwargs.get('Pd', 0.5)
@@ -203,7 +202,7 @@ def generator(
     b = int(C - 1)  # branching factor
 
     # shared weight kwargs for flat topologies (no depth info)
-    wt_kw = dict(weight_dist=weight_dist, rng=rng, a=a, sigma=sigma)
+    wt_kw = dict(weight_dist=weight_dist, rng=rng, sigma=sigma)
 
     # -----------------------------------------------------------------
     # CONTROL: random regular graph (every node has exactly degree C)
@@ -350,7 +349,7 @@ def generator(
         # --- weights: use shared make_weights with depth info ---
         node_weights = make_weights(
             N, weight_dist=weight_dist, rng=rng,
-            a=a, sigma=sigma, S=S,
+            sigma=sigma, S=S,
             depth=depth, max_depth=max_depth,
         )
 

@@ -31,6 +31,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse.linalg import eigs
 from scipy.sparse import csr_matrix, diags, eye as speye
+from scipy.sparse.linalg import ArpackNoConvergence
 
 
 def build_weight_matrix(
@@ -59,7 +60,8 @@ def build_weight_matrix(
     N = adjacency.shape[0]
     assert adjacency.shape == (N, N), "Adjacency matrix must be square"
     assert node_weights.shape == (N,), "Node weights must match adjacency size"
-    assert np.all(node_weights > 0), "All node weights must be strictly positive"
+    assert np.all(
+        node_weights > 0), "All node weights must be strictly positive"
 
     # convert to sparse if dense, then add self-loops
     A = csr_matrix(adjacency, dtype=np.float64)
@@ -71,10 +73,11 @@ def build_weight_matrix(
 
     # row-normalize to make stochastic
     row_sums = np.asarray(W.sum(axis=1)).ravel()
-    assert np.all(row_sums > 0), "Every node must have at least itself as neighbor"
+    assert np.all(
+        row_sums > 0), "Every node must have at least itself as neighbor"
     W = diags(1.0 / row_sums) @ W
 
-    return W.tocsr() # type: ignore
+    return W.tocsr()
 
 
 def simulate_degroot(
@@ -113,7 +116,7 @@ def simulate_degroot(
         'disagreement_history' : list[float]
             max(x) - min(x) at each step, for diagnostics/plotting.
     """
-    N = W.shape[0] # type: ignore
+    N = W.shape[0]  # type: ignore
     assert x0.shape == (N,), "Initial opinions must match weight matrix size"
 
     x = x0.copy()
@@ -161,6 +164,10 @@ def compute_spectral_gap(W: csr_matrix) -> dict:
     Convergence time scales as ~ 1 / spectral_gap (up to log factors).
     More precisely, time to reach threshold δ ≈ log(1/δ) / log(1/|λ₂|).
 
+    Uses ARPACK sparse eigensolver by default. Falls back to dense
+    eigensolver if ARPACK fails to converge (common with poorly
+    conditioned matrices from highly skewed weight distributions).
+
     Parameters
     ----------
     W : (N, N) sparse row-stochastic matrix
@@ -177,11 +184,25 @@ def compute_spectral_gap(W: csr_matrix) -> dict:
         'predicted_convergence_time' : float
             Estimated steps to reach threshold 1e-6, computed as
             log(1e-6) / log(|λ₂|). Returns inf if |λ₂| >= 1.
+        'used_dense_fallback' : bool
+            True if ARPACK failed and dense eigensolver was used.
     """
     if not isinstance(W, csr_matrix):
         W = csr_matrix(W)
 
-    eigenvalues, _ = eigs(W, k=2)  # type: ignore[misc]
+    used_dense = False
+
+    try:
+        eigenvalues, _ = eigs(W, k=2, which='LM', maxiter=10000)
+    except (ArpackNoConvergence, RuntimeError):
+        # fall back to dense eigensolver
+        used_dense = True
+        W_dense = W.toarray()
+        all_eigs = np.linalg.eigvals(W_dense)
+        # pick the two largest by modulus
+        moduli_all = np.abs(all_eigs)
+        top2_idx = np.argsort(-moduli_all)[:2]
+        eigenvalues = all_eigs[top2_idx]
 
     # Sort by modulus, descending
     moduli = np.abs(eigenvalues)
@@ -202,6 +223,7 @@ def compute_spectral_gap(W: csr_matrix) -> dict:
         'lambda_2_modulus': lambda_2_mod,
         'spectral_gap': spectral_gap,
         'predicted_convergence_time': predicted_time,
+        'used_dense_fallback': used_dense,
     }
 
 
@@ -236,7 +258,8 @@ def run_trial(
     W = build_weight_matrix(adjacency, node_weights)
     x0 = rng.uniform(0.0, 1.0, size=N)
 
-    sim_results = simulate_degroot(W, x0, max_steps=max_steps, threshold=threshold)
+    sim_results = simulate_degroot(
+        W, x0, max_steps=max_steps, threshold=threshold)
     spectral_results = compute_spectral_gap(W)
 
     return {
