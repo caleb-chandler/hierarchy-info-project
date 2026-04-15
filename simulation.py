@@ -9,22 +9,23 @@ C = 6
 b = int(C - 1)  # branching factor
 N_MIN, N_MAX = 10, 10_000
 N_POINTS = 20  # approximate number of sizes to test
-weight_dist = 'skewed'
+weight_dist = None
 n_trials = 20
 
 structures = ['control', 'alternative', 'hierarchy']
 
 # --- compute N_range from valid tree sizes ---
-# get all valid sizes in range, then subsample ~N_POINTS evenly spaced ones
+# get all valid sizes in range, then subsample ~N_POINTS log-spaced ones
 all_valid = valid_tree_sizes(b, N_MAX)
 all_valid = all_valid[all_valid >= N_MIN]
 
 if len(all_valid) <= N_POINTS:
     N_range = all_valid
 else:
-    # pick N_POINTS indices roughly evenly spaced through the valid sizes
-    idx = np.round(np.linspace(0, len(all_valid) - 1, N_POINTS)).astype(int)
-    N_range = all_valid[idx]
+    # pick N_POINTS indices roughly log-spaced through the valid sizes
+    log_targets = np.logspace(np.log10(N_MIN), np.log10(N_MAX), N_POINTS)
+    idx = [np.argmin(np.abs(all_valid - t)) for t in log_targets]
+    N_range = np.unique(all_valid[idx])
 
 print(f"N_range ({len(N_range)} sizes): {N_range.tolist()}")
 
