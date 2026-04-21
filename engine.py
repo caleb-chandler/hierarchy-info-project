@@ -1,32 +1,3 @@
-"""
-DeGroot Consensus Engine
-========================
-Core dynamics engine for studying how network topology and heterogeneous
-influence affect consensus formation in social groups.
-
-The update rule is standard DeGroot:
-    x(t+1) = W @ x(t)
-
-where W is a row-stochastic weight matrix encoding both topology (who
-communicates with whom) and influence (how much weight agent i gives
-to agent j's opinion).
-
-Weight matrix construction:
-    Given an adjacency matrix A (binary, no self-loops) and a vector of
-    node influence weights w, we construct W as follows:
-        - Agent i's neighborhood includes itself plus all j where A[i,j] = 1
-        - The raw weight of neighbor j on agent i is w[j]
-        - The raw self-weight of agent i is w[i]
-        - Row-normalize so each row sums to 1
-
-    So W[i,j] = w[j] / sum(w[k] for k in N(i) ∪ {i})  if j in N(i) ∪ {i}
-       W[i,j] = 0                                       otherwise
-
-This means high-influence nodes pull their neighbors' opinions more strongly.
-Self-inclusion ensures aperiodicity (necessary for convergence on bipartite
-graphs like trees).
-"""
-
 import numpy as np
 from numpy.typing import NDArray
 from scipy.sparse.linalg import eigs
@@ -116,7 +87,7 @@ def simulate_degroot(
         'disagreement_history' : list[float]
             max(x) - min(x) at each step, for diagnostics/plotting.
     """
-    N = W.shape[0]  # type: ignore
+    N = W.shape[0]
     assert x0.shape == (N,), "Initial opinions must match weight matrix size"
 
     x = x0.copy()
@@ -204,7 +175,7 @@ def compute_spectral_gap(W: csr_matrix) -> dict:
         top2_idx = np.argsort(-moduli_all)[:2]
         eigenvalues = all_eigs[top2_idx]
 
-    # Sort by modulus, descending
+    # sort by modulus, descending
     moduli = np.abs(eigenvalues)
     sorted_indices = np.argsort(-moduli)
     eigenvalues_sorted = eigenvalues[sorted_indices]
@@ -267,82 +238,3 @@ def run_trial(
         **sim_results,
         **spectral_results,
     }
-
-
-# ---------------------------------------------------------------------------
-# Quick self-test
-# ---------------------------------------------------------------------------
-if __name__ == '__main__':
-    print("=" * 60)
-    print("DeGroot Engine Self-Test")
-    print("=" * 60)
-
-    rng = np.random.default_rng(42)
-
-    # Test 1: Complete graph, N=10, uniform weights
-    print("\n--- Test 1: Complete graph, N=10, uniform weights ---")
-    N = 10
-    A = np.ones((N, N)) - np.eye(N)
-    w = np.ones(N)
-    result = run_trial(A, w, rng=rng)
-    print(f"  Spectral gap:      {result['spectral_gap']:.6f}")
-    print(f"  |λ₂|:             {result['lambda_2_modulus']:.6f}")
-    print(f"  Predicted time:    {result['predicted_convergence_time']:.1f}")
-    print(f"  Actual time:       {result['consensus_time']}")
-    print(f"  Converged:         {result['converged']}")
-    print(f"  Final disagreement: {result['final_disagreement']:.2e}")
-
-    # Test 2: Path graph, N=10, uniform weights
-    print("\n--- Test 2: Path graph, N=10, uniform weights ---")
-    A = np.zeros((N, N))
-    for i in range(N - 1):
-        A[i, i + 1] = 1
-        A[i + 1, i] = 1
-    w = np.ones(N)
-    result = run_trial(A, w, rng=rng)
-    print(f"  Spectral gap:      {result['spectral_gap']:.6f}")
-    print(f"  |λ₂|:             {result['lambda_2_modulus']:.6f}")
-    print(f"  Predicted time:    {result['predicted_convergence_time']:.1f}")
-    print(f"  Actual time:       {result['consensus_time']}")
-    print(f"  Converged:         {result['converged']}")
-    print(f"  Final disagreement: {result['final_disagreement']:.2e}")
-
-    # Test 3: Star graph, N=10, center has high weight
-    print("\n--- Test 3: Star graph, N=10, center weight=5, leaves=1 ---")
-    A = np.zeros((N, N))
-    for i in range(1, N):
-        A[0, i] = 1
-        A[i, 0] = 1
-    w = np.ones(N)
-    w[0] = 5.0
-    result = run_trial(A, w, rng=rng)
-    print(f"  Spectral gap:      {result['spectral_gap']:.6f}")
-    print(f"  |λ₂|:             {result['lambda_2_modulus']:.6f}")
-    print(f"  Predicted time:    {result['predicted_convergence_time']:.1f}")
-    print(f"  Actual time:       {result['consensus_time']}")
-    print(f"  Converged:         {result['converged']}")
-    print(f"  Final disagreement: {result['final_disagreement']:.2e}")
-
-    # Test 4: Verify simulation matches spectral prediction
-    print("\n--- Test 4: Prediction accuracy across 5 random graphs ---")
-    for trial in range(5):
-        N = 20
-        A = np.zeros((N, N))
-        perm = rng.permutation(N)
-        for i in range(N - 1):
-            A[perm[i], perm[i + 1]] = 1
-            A[perm[i + 1], perm[i]] = 1
-        for _ in range(N):
-            i, j = rng.integers(0, N, size=2)
-            if i != j:
-                A[i, j] = 1
-                A[j, i] = 1
-        w = rng.uniform(0.5, 2.0, size=N)
-        result = run_trial(A, w, rng=rng)
-        ratio = result['consensus_time'] / result['predicted_convergence_time']
-        print(f"  Trial {trial + 1}: predicted={result['predicted_convergence_time']:.1f}, "
-              f"actual={result['consensus_time']}, ratio={ratio:.3f}")
-
-    print("\n" + "=" * 60)
-    print("Self-test complete.")
-    print("=" * 60)

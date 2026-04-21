@@ -133,7 +133,7 @@ def make_weights(
 
     # for hierarchy: sort so higher-level nodes get higher weights
     if depth is not None and max_depth is not None:
-        sorted_w = np.sort(w)[::-1]                  # descending values
+        sorted_w = np.sort(w)[::-1]  # descending values
         reversed_depth = max_depth - depth
         rank_order = np.argsort(-reversed_depth, kind='stable')  # root first
         out = np.empty(N, dtype=np.float64)
@@ -154,8 +154,7 @@ def generator(
     '''
     Generate a graph of type `graph_type` with target mean degree C and size N.
 
-    N is assumed to already be a valid tree size (use snap_to_valid or
-    valid_tree_sizes to pre-compute valid sizes).
+    N is assumed to already be a valid tree size.
 
     Args
     ---
