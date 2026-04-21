@@ -115,4 +115,4 @@ All data are computationally generated. The pipeline is:
 6. **Serialization**: Per-trial results are stored in nested dictionaries and pickled.
 
 ---
-Note: Claude/Gemini used for code inspection and troubleshooting, as well as plotting.
+Note: Claude/Gemini used for code inspection, troubleshooting, and plotting.
