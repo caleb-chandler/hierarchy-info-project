@@ -1,4 +1,4 @@
-This notebook contains the code for running my computational test of Gregory Johnson's (1978, 1982) scalar stress theory using DeGroot opinion dynamics on structured networks.
+This notebook contains the code for running my computational test of Gregory Johnson's scalar stress theory using DeGroot opinion dynamics on structured networks.
 
 ## Overview
 
@@ -113,3 +113,6 @@ All data are computationally generated. The pipeline is:
 4. **Opinion dynamics**: Initial opinions are drawn U(0,1). The matrix-vector product W·x is iterated until max(x)−min(x) < 1e-6 or 50,000 steps.
 5. **Spectral analysis**: The two largest eigenvalues of W are computed via ARPACK. The spectral gap (1−|λ₂|) yields a predicted convergence time: log(1e-6) / log(|λ₂|).
 6. **Serialization**: Per-trial results are stored in nested dictionaries and pickled.
+
+---
+Note: Claude/Gemini used for code inspection and troubleshooting, as well as plotting.
