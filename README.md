@@ -1,4 +1,4 @@
-This notebook contains the code for running my computational test of Gregory Johnson's (1978, 1982) scalar stress theory using DeGroot opinion dynamics on structured networks. The core finding is that Johnson's O(N²) coordination cost prediction depends on an implicit complete-graph communication assumption. Under realistic fixed-degree topologies, consensus time scales far more favorably, and hierarchy's advantage over flat networks is contingent on influence heterogeneity rather than structurally inevitable.
+This notebook contains the code for running my computational test of Gregory Johnson's (1978, 1982) scalar stress theory using DeGroot opinion dynamics on structured networks.
 
 ## Overview
 
@@ -95,20 +95,21 @@ Expect the skewed run to take longer due to slower convergence at large N with h
 
 ### Step 2: Run Analysis
 
-Open and run `analysis.ipynb` (or execute `analysis.py` as a script). The notebook loads all nine pickle files, constructs a unified DataFrame, and produces all figures. The sigma threshold sweep in Analysis 3 runs its own simulations inline (~19 σ values × 3 topologies × 20 trials at N ≈ 1000).
+Open and run `analysis.ipynb`. The notebook loads all nine pickle files, constructs a unified DataFrame, and produces all figures. The sigma threshold sweep in Analysis 3 runs its own simulations inline (~19 σ values × 3 topologies × 20 trials at N ≈ 1000).
 
 Figures are saved to `figures/` in both PNG (300 dpi) and PDF formats.
 
 ### Random Seeds
 
 Graph construction and opinion initialization use separate, fixed RNG streams (`seed=21` and `seed=42` respectively in `simulation.py`; `seed=99` and `seed=77` for the sigma sweep in the notebook).
+
 ## How Data Are Obtained
 
 All data are computationally generated. The pipeline is:
 
-1. **Graph generation**: NetworkX constructs the base topology (random regular, Watts-Strogatz, or b-ary tree). For hierarchy, additional leaf-to-leaf edges are added probabilistically with weights decaying by hierarchical distance (Pd^(max_depth − depth_of_LCA)).
+1. **Graph generation**: NetworkX constructs the base topology.
 2. **Weight assignment**: `make_weights()` draws from the specified distribution. For hierarchy with stochastic weights, values are sort-assigned to preserve the marginal distribution while correlating influence with tree depth.
 3. **Weight matrix construction**: The adjacency matrix is augmented with self-loops, columns are scaled by node influence weights, and rows are normalized to produce a row-stochastic DeGroot matrix (sparse CSR format).
 4. **Opinion dynamics**: Initial opinions are drawn U(0,1). The matrix-vector product W·x is iterated until max(x)−min(x) < 1e-6 or 50,000 steps.
 5. **Spectral analysis**: The two largest eigenvalues of W are computed via ARPACK. The spectral gap (1−|λ₂|) yields a predicted convergence time: log(1e-6) / log(|λ₂|).
-6. **Serialization**: Per-trial results are stored in nested dictionaries (`{N: [list of trial dicts]}`) and pickled.
+6. **Serialization**: Per-trial results are stored in nested dictionaries and pickled.
