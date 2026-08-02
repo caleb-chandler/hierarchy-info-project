@@ -5,52 +5,6 @@ from scipy.sparse import csr_matrix, diags, eye as speye
 from scipy.sparse.linalg import ArpackNoConvergence
 
 
-def build_weight_matrix(
-    adjacency: NDArray[np.float64],
-    node_weights: NDArray[np.float64],
-) -> csr_matrix:
-    """
-    Construct a row-stochastic DeGroot weight matrix from an adjacency
-    matrix and node influence weights. Returns a sparse CSR matrix.
-
-    Parameters
-    ----------
-    adjacency : (N, N) binary array
-        Unweighted adjacency matrix. A[i,j] = 1 if i and j are connected.
-        Should have zero diagonal (no self-loops in the topology).
-        Can be directed or undirected. Dense or sparse.
-    node_weights : (N,) array
-        Influence weight for each node. Must be strictly positive.
-
-    Returns
-    -------
-    W : (N, N) sparse CSR row-stochastic matrix
-        W[i,j] is the weight agent i places on agent j's opinion.
-        Each row sums to 1. W[i,i] > 0 for all i (self-inclusion).
-    """
-    N = adjacency.shape[0]
-    assert adjacency.shape == (N, N), "Adjacency matrix must be square"
-    assert node_weights.shape == (N,), "Node weights must match adjacency size"
-    assert np.all(
-        node_weights > 0), "All node weights must be strictly positive"
-
-    # convert to sparse if dense, then add self-loops
-    A = csr_matrix(adjacency, dtype=np.float64)
-    A = A + speye(N, format='csr')
-
-    # apply node influence weights: multiply each column j by w[j]
-    # right-multiplication by diagonal = column scaling
-    W = A @ diags(node_weights)
-
-    # row-normalize to make stochastic
-    row_sums = np.asarray(W.sum(axis=1)).ravel()
-    assert np.all(
-        row_sums > 0), "Every node must have at least itself as neighbor"
-    W = diags(1.0 / row_sums) @ W
-
-    return W.tocsr()
-
-
 def simulate_degroot(
     W: csr_matrix,
     x0: NDArray[np.float64],
