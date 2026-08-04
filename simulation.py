@@ -5,7 +5,7 @@ from generator import create_new, calibrate_density, largest_connected_component
 from engine import run_trial
 
 # --- parameters ---
-ALPHA = 2.0                # fixed influence multiplier; not swept
+ALPHA = 2.0                # fixed influence multiplier
 B_FRACTION = 0.05           # basal fraction b (B = round(b*N))
 DENSITY_MARGIN = 9.0        # safety margin for calibrate_density
 N_MIN, N_MAX = 100, 10_000
