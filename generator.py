@@ -149,7 +149,8 @@ def create_new(N, b, c, T, rng):
             break
         n_needed = num_excess_links - len(chosen_pairs)
         n_draw = int(n_needed * 1.2) + 10
-        draw_buckets = rng.choice(len(bucket_probs), size=n_draw, p=bucket_probs)
+        draw_buckets = rng.choice(
+            len(bucket_probs), size=n_draw, p=bucket_probs)
         for bi in draw_buckets:
             sl, tl = bucket_sl[bi], bucket_tl[bi]
             src_ids, tgt_ids = sources_by_level[sl], targets_by_level[tl]
