@@ -11,7 +11,7 @@ DENSITY_MARGIN = 9.0        # safety margin for calibrate_density
 N_MIN, N_MAX = 100, 10_000
 N_POINTS = 20               # number of sizes in the N-ensemble
 SPACING = 'log'             # 'log' or 'lin'
-T_RANGE = np.linspace(0.1, 5.0, 15)  # placeholder T sweep
+T_RANGE = np.linspace(0.1, 1.0, 10)  # placeholder T sweep
 M = 20                       # graph draws per (N, T) cell
 
 # --- compute N_range from the chosen spacing ---
