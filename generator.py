@@ -105,12 +105,16 @@ def create_new(N, b, c, T, rng):
     levels = np.array([G.nodes[n]['level'] for n in range(N)])
     non_basal_ids = np.arange(B, N)
 
+    # Basal nodes have no prey (edges point authority -> subordinate, so
+    # "prey of i" means i's out-neighbors) -- excluded as excess-edge
+    # sources, not targets, matching the tree-building step above, where
+    # only non-basal nodes ever originate an edge.
     sources_by_level = {
-        lvl: np.where(levels == lvl)[0] for lvl in np.unique(levels)
-    }
-    targets_by_level = {
         lvl: non_basal_ids[levels[non_basal_ids] == lvl]
         for lvl in np.unique(levels[non_basal_ids])
+    }
+    targets_by_level = {
+        lvl: np.where(levels == lvl)[0] for lvl in np.unique(levels)
     }
 
     bucket_sl, bucket_tl, bucket_weight, bucket_count = [], [], [], []
