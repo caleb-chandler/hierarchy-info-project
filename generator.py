@@ -9,12 +9,13 @@ def calibrate_density(b, N_max, margin=9.0):
     entire ensemble of sizes up to N_max, using a single fixed c for every
     N in the sweep.
 
-    Merging the B disjoint trees produced by the tree-building step is
-    structurally equivalent to random-graph connectivity on B components,
-    whose classic threshold is on the order of B*ln(B) bridging edges.
-    Because the required excess/N ratio to clear that threshold grows with
-    N, calibrating against the largest N in the ensemble is sufficient for
-    every smaller N too -- no need to vary density with N.
+    Excess ratio $R_e =\frac{M(B_m\cdot\log_{B_m})}{N_m}$ or in other words 
+    the number of trials (excess links) expected before each possible sample 
+    (isolated tree) is drawn per $N$ at the largest $N$ (with added buffer $M$)
+
+    1-b is equivalent to the non-basal node ratio via "tree_edges = N-B = N-bN"
+    and "tree_edges_per_node = N-bN/N = 1-b." This is added to the excess ratio
+    to obtain the total ratio which is c. Only works if 1 edge is added at a time
 
     Args:
         b: basal fraction (B = round(b*N)).

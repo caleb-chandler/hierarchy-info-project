@@ -1,7 +1,7 @@
 import numpy as np
 import networkx as nx
 from numpy.typing import NDArray
-from scipy.sparse.linalg import eigs, spsolve, cg
+from scipy.sparse.linalg import eigs, spsolve, bicgstab
 from scipy.sparse import csr_matrix, diags, eye as speye
 from scipy.sparse.linalg import ArpackNoConvergence
 
@@ -40,7 +40,8 @@ def build_weight_matrix(G: nx.DiGraph, alpha: float) -> csr_matrix:
         if G[u][v]['is_asymmetric']:
             rows += [u, v]
             cols += [v, u]
-            vals += [1.0, alpha]  # u (senior) weighs v at 1; v (junior) weighs u at alpha
+            # u (senior) weighs v at 1; v (junior) weighs u at alpha
+            vals += [1.0, alpha]
         else:
             rows.append(u)
             cols.append(v)
@@ -60,17 +61,24 @@ def build_weight_matrix(G: nx.DiGraph, alpha: float) -> csr_matrix:
 def trophic_coherence(G: nx.DiGraph) -> dict:
     """
     Compute trophic levels and the incoherence parameter q for a GPPM
-    graph (Johnson et al. 2014, "Trophic coherence determines food-web
-    stability").
+    graph, using the standard food-web prey-averaged formula: basal
+    nodes (no prey) are fixed at s_i = 1, and every other node's level
+    is s_i = 1 + mean(s_j for j among i's prey).
 
-    Trophic level s_i is defined by minimizing sum over edges (i,j) of
-    (s_i - s_j - 1)^2 -- i.e. every edge "should" span a level gap of 1,
-    matching this graph's convention (source is one level more senior
-    than target) -- subject to s_i = 1 for basal nodes. Setting the
-    gradient to zero gives a sparse linear system in the free (non-basal)
-    variables, solved directly. The incoherence parameter q is the
-    standard deviation of the actual per-edge level gaps s_i - s_j; q = 0
-    means every edge spans exactly one level (perfectly coherent).
+    Edges in this graph point from authority to subordinate (edge (i,j)
+    means i has authority over j), which is the reverse of the typical
+    ecological convention (edges prey -> predator, so a predator's prey
+    are its in-neighbors). Here, "prey of i" is i's out-neighbors --
+    whichever nodes i has authority over -- so the averaging is over
+    out-neighbors, normalized by out-degree, not in-degree.
+
+    This gives a directed linear system in the free (non-basal)
+    variables (basal levels are known constants), solved directly. The
+    incoherence parameter q is the standard deviation of the actual
+    per-edge level gaps s_i - s_j; q = 0 means every edge spans exactly
+    one level (perfectly coherent), and the mean gap is always 1 by
+    construction (a node's own level is forced to average 1 above its
+    prey's).
 
     Parameters
     ----------
@@ -92,31 +100,28 @@ def trophic_coherence(G: nx.DiGraph) -> dict:
     basal = np.where(is_basal)[0]
     free = np.where(~is_basal)[0]
 
-    k_out = np.zeros(N)
-    k_in = np.zeros(N)
-    rows, cols, vals = [], [], []
+    out_degree = np.zeros(N)
+    rows, cols = [], []
     for u, v in G.edges():
-        k_out[u] += 1
-        k_in[v] += 1
-        rows += [u, v]
-        cols += [v, u]
-        vals += [1.0, 1.0]
-    A_sym = csr_matrix((vals, (rows, cols)), shape=(N, N))
-    deg_total = k_out + k_in
+        out_degree[u] += 1
+        rows.append(u)
+        cols.append(v)
+    A = csr_matrix((np.ones(len(rows)), (rows, cols)), shape=(N, N))
 
     s = np.ones(N)
     if len(free) > 0:
-        A_free_free = A_sym[free, :][:, free]
-        A_free_basal = A_sym[free, :][:, basal]
-        L_matrix = (diags(deg_total[free]) - A_free_free).tocsr()
-        rhs = (k_out - k_in)[free] + np.asarray(
+        A_free_free = A[free, :][:, free]
+        A_free_basal = A[free, :][:, basal]
+        L_matrix = (diags(out_degree[free]) - A_free_free).tocsr()
+        rhs = out_degree[free] + np.asarray(
             A_free_basal.sum(axis=1)).ravel()
 
-        # L_matrix is a symmetric, grounded graph Laplacian (positive
-        # definite as long as every free node reaches a basal node) --
-        # CG converges in a fraction of a second where SuperLU's default
-        # ordering in spsolve can take a minute on graphs this size.
-        s_free, info = cg(L_matrix, rhs, rtol=1e-10)
+        # L_matrix is diagonally dominant (out_degree counts every
+        # out-edge, A_free_free only the subset landing on free nodes)
+        # but not symmetric -- unlike the old undirected-Laplacian
+        # version, so CG doesn't apply; BiCGSTAB handles the general
+        # case and still converges fast on this well-conditioned system.
+        s_free, info = bicgstab(L_matrix, rhs, rtol=1e-10)
         if info != 0:
             s_free = spsolve(L_matrix, rhs)
         s[free] = s_free

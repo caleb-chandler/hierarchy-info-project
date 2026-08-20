@@ -6,10 +6,10 @@ from engine import run_trial
 
 # --- parameters ---
 ALPHA = 2.0                # fixed influence multiplier
-B_FRACTION = 0.05           # basal fraction b (B = round(b*N))
+B_FRACTION = 0.1           # basal fraction b (B = round(b*N))
 DENSITY_MARGIN = 9.0        # safety margin for calibrate_density
 N_MIN, N_MAX = 100, 10_000
-N_POINTS = 20               # number of sizes in the N-ensemble
+N_SIZES = 20               # number of sizes in the N-ensemble
 SPACING = 'log'             # 'log' or 'lin'
 T_RANGE = np.linspace(0.1, 1.0, 10)  # placeholder T sweep
 M = 20                       # graph draws per (N, T) cell
@@ -17,11 +17,11 @@ M = 20                       # graph draws per (N, T) cell
 # --- compute N_range from the chosen spacing ---
 if SPACING == 'log':
     N_range = np.unique(np.round(
-        np.logspace(np.log10(N_MIN), np.log10(N_MAX), N_POINTS)
+        np.logspace(np.log10(N_MIN), np.log10(N_MAX), N_SIZES)
     ).astype(int))
 elif SPACING == 'lin':
     N_range = np.unique(np.round(
-        np.linspace(N_MIN, N_MAX, N_POINTS)
+        np.linspace(N_MIN, N_MAX, N_SIZES)
     ).astype(int))
 else:
     raise ValueError(f"Unknown SPACING '{SPACING}'")
@@ -78,5 +78,23 @@ for T in T_RANGE:
     with open(file_path, 'wb') as f:
         pickle.dump(results_bag, f)
     print(f"Saved T={T:.3f} to {file_path}")
+
+# --- add md file with params for reference ---
+
+content = f"""
+```python
+ALPHA = {ALPHA}
+B_FRACTION = {B_FRACTION}
+DENSITY_MARGIN = {DENSITY_MARGIN}
+N_MIN, N_MAX = {N_MIN}, {N_MAX}
+N_SIZES = {N_SIZES}
+SPACING = {SPACING}
+T_RANGE = {T_RANGE}
+M = {M}
+```
+"""
+
+with open(save_dir / 'params.md', 'w', encoding='utf-8') as f:
+    f.write(content)
 
 print("\nDone.")

@@ -1,8 +1,0 @@
-ALPHA = 2.0
-B_FRACTION = 0.05
-DENSITY_MARGIN = 9.0
-N_MIN, N_MAX = 100, 10_000
-N_POINTS = 20
-SPACING = 'log'
-T_RANGE = np.linspace(0.1, 5.0, 15)
-M = 20
