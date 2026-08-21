@@ -11,7 +11,7 @@ DENSITY_MARGIN = 9.0        # safety margin for calibrate_density
 N_MIN, N_MAX = 100, 10_000
 N_SIZES = 20               # number of sizes in the N-ensemble
 SPACING = 'log'             # 'log' or 'lin'
-T_RANGE = np.linspace(0.1, 1.0, 10)  # placeholder T sweep
+T_RANGE = np.linspace(0.1, 1.5, 15)
 M = 20                       # graph draws per (N, T) cell
 
 # --- compute N_range from the chosen spacing ---
@@ -83,18 +83,18 @@ for T in T_RANGE:
 
 content = f"""
 ```python
-ALPHA = {ALPHA}
-B_FRACTION = {B_FRACTION}
-DENSITY_MARGIN = {DENSITY_MARGIN}
-N_MIN, N_MAX = {N_MIN}, {N_MAX}
-N_SIZES = {N_SIZES}
-SPACING = {SPACING}
-T_RANGE = {T_RANGE}
-M = {M}
+ALPHA : {ALPHA}
+B_FRACTION : {B_FRACTION}
+DENSITY_MARGIN : {DENSITY_MARGIN}
+N_MIN, N_MAX : {N_MIN}, {N_MAX}
+N_SIZES : {N_SIZES}
+SPACING : {SPACING}
+T_RANGE : {T_RANGE}
+M : {M}
 ```
 """
 
-with open(save_dir / 'params.md', 'w', encoding='utf-8') as f:
+with open(os.path.join(save_dir, 'params.md'), 'w', encoding='utf-8') as f:
     f.write(content)
 
 print("\nDone.")
