@@ -1,5 +1,7 @@
 import numpy as np
 import networkx as nx
+import math
+import pandas as pd
 
 
 def calibrate_density(b, N_max, margin=9.0):
@@ -33,7 +35,7 @@ def calibrate_density(b, N_max, margin=9.0):
     return (1.0 - b) + excess_ratio
 
 
-def create_new(N, b, c, T, rng):
+def create_new(N, b, c, T_hat, rng):
     '''
     Generate a random hierarchical influence network using the Generalized
     Preferential Preying Model (GPPM).
@@ -57,9 +59,10 @@ def create_new(N, b, c, T, rng):
             >= N-B, the number of tree edges added during initialization).
             Use calibrate_density() to pick a c that stays connected across
             an entire N-ensemble.
-        T: bandwidth of the Gaussian level-difference kernel used to weight
-            excess-link sampling; smaller values concentrate links more
-            tightly around a level gap of 1.
+        T_hat: dimensionless quantity used to calibrate T, which determines
+            bandwidth of the Gaussian level-difference kernel used to weight 
+            excess-link sampling; smaller values concentrate links more tightly 
+            around a level gap of 1.
         rng: numpy.random.Generator used for all random draws.
 
     Returns:
@@ -74,6 +77,8 @@ def create_new(N, b, c, T, rng):
             f"c={c} gives L={L}, below the {N - B} tree edges required "
             f"for N={N}, b={b}"
         )
+
+    T = T_hat * math.sqrt(N)
 
     # --- init base layer and attrs ---
     G = nx.DiGraph()
@@ -95,6 +100,10 @@ def create_new(N, b, c, T, rng):
     del available_nodes  # no longer needed
     tree_edge_set = set(tree_edges)
 
+    # record tree depth before adding excess links
+    levels = np.array([G.nodes[n]['level'] for n in range(N)])
+    tree_depth = max(levels)
+
     # --- add excess links ---
 
     # Weight depends only on (source_level, target_level), and tree depth
@@ -102,13 +111,15 @@ def create_new(N, b, c, T, rng):
     # -- far fewer than N. Bucketing by level-pair keeps the accounting
     # O(D^2) (D = number of distinct levels) instead of O(N*(N-B)), which
     # is what blows up memory/time for large N.
-    levels = np.array([G.nodes[n]['level'] for n in range(N)])
     non_basal_ids = np.arange(B, N)
 
     # Basal nodes have no prey (edges point authority -> subordinate, so
     # "prey of i" means i's out-neighbors) -- excluded as excess-edge
     # sources, not targets, matching the tree-building step above, where
     # only non-basal nodes ever originate an edge.
+
+    # sort all eligible source and target nodes into dicts mapping each level
+    # to an array containing all nodes of the specified type within that level
     sources_by_level = {
         lvl: non_basal_ids[levels[non_basal_ids] == lvl]
         for lvl in np.unique(levels[non_basal_ids])
@@ -140,6 +151,13 @@ def create_new(N, b, c, T, rng):
         print("Error: Weights not added.")
         return G
     bucket_probs = bucket_mass / total_mass
+
+    # collect bucket sizes for analysis
+    bucket_sizes = pd.DataFrame({
+        'sl': bucket_sl,
+        'tl': bucket_tl,
+        'size': bucket_count
+    })
 
     # sample excess links without replacement: draw (bucket, then a
     # uniform pair within that bucket, since all pairs in a bucket share
@@ -174,11 +192,15 @@ def create_new(N, b, c, T, rng):
 
     G.add_edges_from(chosen_pairs)
 
+    level_spans = np.array(
+        [abs(G.nodes[u]['level'] - G.nodes[v]['level']) for u, v in G.edges])
+    normalized_level_spans = level_spans / tree_depth
+
     # tag every edge as asymmetric (no reciprocal edge) or not
     for u, v in G.edges():
         G[u][v]['is_asymmetric'] = not G.has_edge(v, u)
 
-    return G
+    return G, T, tree_depth, normalized_level_spans, bucket_sizes
 
 
 def largest_connected_component(G):

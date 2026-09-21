@@ -3,6 +3,8 @@ import pickle
 import numpy as np
 from generator import create_new, calibrate_density, largest_connected_component
 from engine import run_trial
+from datetime import date
+from pathlib import Path
 
 # --- parameters ---
 ALPHA = 2.0                # fixed influence multiplier
@@ -11,8 +13,12 @@ DENSITY_MARGIN = 9.0        # safety margin for calibrate_density
 N_MIN, N_MAX = 100, 10_000
 N_SIZES = 20               # number of sizes in the N-ensemble
 SPACING = 'log'             # 'log' or 'lin'
-T_RANGE = np.linspace(0.1, 1.5, 15)
-M = 20                       # graph draws per (N, T) cell
+T_HAT_RANGE = np.linspace(0.0, 1.0, 10)
+M = 20                       # graph draws per (N, T_hat) cell
+
+# flight check
+if any(T_HAT_RANGE) not in range(0.0, 1.0001):
+    print("Error: T-hat must stay between 0 and 1")
 
 # --- compute N_range from the chosen spacing ---
 if SPACING == 'log':
@@ -36,22 +42,35 @@ print(f"calibrated density c = {c:.4f} (b={B_FRACTION}, N_max={N_MAX})")
 graph_rng = np.random.default_rng(21)
 
 # --- output directory ---
-save_dir = 'results/'
+run_date = date.today().isoformat()
+save_dir = Path(f'results/{run_date}/')
+if save_dir.exists():
+    count = 1
+    for root, dirs, files in os.walk(save_dir):
+        for dir_name in dirs:
+            count += 1
+    save_dir = f'results/{run_date}/{count}'
+else:
+    save_dir = f'results/{run_date}/1'
+
 os.makedirs(save_dir, exist_ok=True)
 
 # --- run ---
 print(f"\nSimulating alpha={ALPHA}, {M} trials per (N, T) cell, "
-      f"{len(T_RANGE)} T values, {len(N_range)} sizes")
+      f"{len(T_HAT_RANGE)} T values, {len(N_range)} sizes")
 
-for T in T_RANGE:
+for T_hat in T_HAT_RANGE:
     results_bag = {}
-    print(f"\nStarting T={T:.3f}...")
+    print(f"\nStarting T_hat={T_hat:.3f}...")
 
     for N in N_range:
         trials = []
 
         for m in range(M):
-            G = create_new(N=int(N), b=B_FRACTION, c=c, T=T, rng=graph_rng)
+            G, T_calibrated, tree_depth, normalized_level_spans, bucket_sizes = create_new(
+                N=int(N), b=B_FRACTION, c=c,
+                T_hat=T_hat, rng=graph_rng
+            )
             Gc, n_dropped = largest_connected_component(G)
             result = run_trial(Gc, alpha=ALPHA)
 
@@ -64,6 +83,10 @@ for T in T_RANGE:
                 'mean_trophic_distance': result['mean_trophic_distance'],
                 'N_actual': Gc.number_of_nodes(),
                 'n_dropped': n_dropped,
+                'T_calibrated': T_calibrated,
+                'tree_depth': tree_depth,
+                'normalized_level_spans': normalized_level_spans,
+                'bucket_sizes': bucket_sizes
             })
 
         results_bag[int(N)] = trials
@@ -73,11 +96,11 @@ for T in T_RANGE:
         print(f"  N={N:>6d} | mean_q={np.mean(q):.4f}  "
               f"median_pred_conv_time={np.median(conv_times):.1f}")
 
-    T_label = f'{T:.3f}'.replace('.', 'p')
+    T_label = f'{T_hat:.2f}'.replace('.', 'p')
     file_path = os.path.join(save_dir, f'T_{T_label}.pkl')
     with open(file_path, 'wb') as f:
         pickle.dump(results_bag, f)
-    print(f"Saved T={T:.3f} to {file_path}")
+    print(f"Saved T_hat={T_hat:.3f} to {file_path}")
 
 # --- add md file with params for reference ---
 
@@ -89,7 +112,7 @@ DENSITY_MARGIN : {DENSITY_MARGIN}
 N_MIN, N_MAX : {N_MIN}, {N_MAX}
 N_SIZES : {N_SIZES}
 SPACING : {SPACING}
-T_RANGE : {T_RANGE}
+T_HAT_RANGE : {T_HAT_RANGE}
 M : {M}
 ```
 """
