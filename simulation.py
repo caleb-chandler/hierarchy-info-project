@@ -9,15 +9,15 @@ from pathlib import Path
 # --- parameters ---
 ALPHA = 2.0                # fixed influence multiplier
 B_FRACTION = 0.1           # basal fraction b (B = round(b*N))
-DENSITY_MARGIN = 9.0        # safety margin for calibrate_density
+DENSITY_MARGIN = 9.0       # safety margin for calibrate_density
 N_MIN, N_MAX = 100, 10_000
 N_SIZES = 20               # number of sizes in the N-ensemble
-SPACING = 'log'             # 'log' or 'lin'
-T_HAT_RANGE = np.linspace(0.0, 1.0, 10)
-M = 20                       # graph draws per (N, T_hat) cell
+SPACING = 'log'            # 'log' or 'lin'
+T_HAT_RANGE = np.linspace(0.1, 1.0, 10)
+M = 20                     # graph draws per (N, T_hat) cell
 
 # flight check
-if any(T_HAT_RANGE) not in range(0.0, 1.0001):
+if not 0.0 <= any(T_HAT_RANGE) <= 1.0:
     print("Error: T-hat must stay between 0 and 1")
 
 # --- compute N_range from the chosen spacing ---
@@ -33,6 +33,8 @@ else:
     raise ValueError(f"Unknown SPACING '{SPACING}'")
 
 print(f"N_range ({len(N_range)} sizes, {SPACING}-spaced): {N_range.tolist()}")
+
+print(f"T-hat range: {T_HAT_RANGE.tolist()}")
 
 # --- calibrate a single density, held constant across the whole ensemble ---
 c = calibrate_density(B_FRACTION, N_MAX, margin=DENSITY_MARGIN)

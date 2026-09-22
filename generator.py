@@ -11,9 +11,8 @@ def calibrate_density(b, N_max, margin=9.0):
     entire ensemble of sizes up to N_max, using a single fixed c for every
     N in the sweep.
 
-    Excess ratio $R_e =\frac{M(B_m\cdot\log_{B_m})}{N_m}$ or in other words 
-    the number of trials (excess links) expected before each possible sample 
-    (isolated tree) is drawn per $N$ at the largest $N$ (with added buffer $M$)
+    Excess ratio = the number of trials (excess links) expected before each possible 
+    sample (isolated tree) is drawn per N at the largest N (with added buffer)
 
     1-b is equivalent to the non-basal node ratio via "tree_edges = N-B = N-bN"
     and "tree_edges_per_node = N-bN/N = 1-b." This is added to the excess ratio
@@ -78,7 +77,7 @@ def create_new(N, b, c, T_hat, rng):
             f"for N={N}, b={b}"
         )
 
-    T = T_hat * math.sqrt(N)
+    T = T_hat * math.log(N)
 
     # --- init base layer and attrs ---
     G = nx.DiGraph()
