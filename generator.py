@@ -1,6 +1,5 @@
 import numpy as np
 import networkx as nx
-import math
 import pandas as pd
 
 
@@ -58,10 +57,10 @@ def create_new(N, b, c, T_hat, rng):
             >= N-B, the number of tree edges added during initialization).
             Use calibrate_density() to pick a c that stays connected across
             an entire N-ensemble.
-        T_hat: dimensionless quantity used to calibrate T, which determines
-            bandwidth of the Gaussian level-difference kernel used to weight 
-            excess-link sampling; smaller values concentrate links more tightly 
-            around a level gap of 1.
+        T_hat: dimensionless quantity used to calibrate T (T = T_hat*tree_depth), 
+            which determines bandwidth of the Gaussian level-difference kernel 
+            used to weight excess-link sampling; smaller values concentrate links 
+            more tightly around a level gap of 1.
         rng: numpy.random.Generator used for all random draws.
 
     Returns:
@@ -76,8 +75,6 @@ def create_new(N, b, c, T_hat, rng):
             f"c={c} gives L={L}, below the {N - B} tree edges required "
             f"for N={N}, b={b}"
         )
-
-    T = T_hat * math.log(N)
 
     # --- init base layer and attrs ---
     G = nx.DiGraph()
@@ -102,6 +99,9 @@ def create_new(N, b, c, T_hat, rng):
     # record tree depth before adding excess links
     levels = np.array([G.nodes[n]['level'] for n in range(N)])
     tree_depth = max(levels)
+
+    # set T based on tree depth
+    T = T_hat * tree_depth
 
     # --- add excess links ---
 
