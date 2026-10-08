@@ -1,0 +1,11 @@
+
+```python
+ALPHA : 2.0
+B_FRACTION : 0.1
+DENSITY_MARGIN : 9.0
+N_MIN, N_MAX : 100, 10000
+N_SIZES : 20
+SPACING : log
+T_HAT_RANGE : [0.025 0.05  0.075 0.1   0.125 0.15  0.175 0.2   0.225 0.25 ]
+M : 20
+```

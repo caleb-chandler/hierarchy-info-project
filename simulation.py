@@ -16,7 +16,7 @@ params = {
     'N_MAX': 10_000,
     'N_SIZES': 20,
     'SPACING': 'log',
-    'T_HAT_RANGE': np.linspace(0.1, 1.0, 10),
+    'T_HAT_RANGE': np.linspace(0.025, 0.25, 10),
     'M': 20
 }
 P = SimpleNamespace(**params)
@@ -110,7 +110,7 @@ def main():
             print(f"  N={N:>6d} | mean_q={np.mean(q):.4f}  "
                   f"median_pred_conv_time={np.median(conv_times):.1f}")
 
-        T_label = f'{T_hat:.2f}'.replace('.', 'p')
+        T_label = f'{T_hat:.4f}'.replace('.', 'p')
         file_path = os.path.join(save_dir, f'T_{T_label}.pkl')
         with open(file_path, 'wb') as f:
             pickle.dump(results_bag, f)
