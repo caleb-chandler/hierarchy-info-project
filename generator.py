@@ -1,6 +1,7 @@
 import numpy as np
 import networkx as nx
 import pandas as pd
+from engine import trophic_coherence
 
 
 def calibrate_density(b, N_max, margin=9.0):
@@ -33,7 +34,7 @@ def calibrate_density(b, N_max, margin=9.0):
     return (1.0 - b) + excess_ratio
 
 
-def create_new(N, b, c, T_hat, rng):
+def create_new(N, b, c, T, rng):
     '''
     Generate a random hierarchical influence network using the Generalized
     Preferential Preying Model (GPPM).
@@ -57,8 +58,7 @@ def create_new(N, b, c, T_hat, rng):
             >= N-B, the number of tree edges added during initialization).
             Use calibrate_density() to pick a c that stays connected across
             an entire N-ensemble.
-        T_hat: dimensionless quantity used to calibrate T (T = T_hat*tree_depth), 
-            which determines bandwidth of the Gaussian level-difference kernel 
+        T: determines bandwidth of the Gaussian level-difference kernel 
             used to weight excess-link sampling; smaller values concentrate links 
             more tightly around a level gap of 1.
         rng: numpy.random.Generator used for all random draws.
@@ -99,9 +99,6 @@ def create_new(N, b, c, T_hat, rng):
     # record tree depth before adding excess links
     levels = np.array([G.nodes[n]['level'] for n in range(N)])
     tree_depth = max(levels)
-
-    # set T based on tree depth
-    T = T_hat * tree_depth
 
     # --- add excess links ---
 
@@ -200,6 +197,52 @@ def create_new(N, b, c, T_hat, rng):
         G[u][v]['is_asymmetric'] = not G.has_edge(v, u)
 
     return G, T, tree_depth, normalized_level_spans, bucket_sizes
+
+
+def calibrate_T(q, N, b, c, rng, T_grid=np.arange(0.2, 0.4001, 0.0125)):
+    '''
+    Find the kernel bandwidth T that gives a target trophic incoherence q
+    at size N, by simulating the median q at each T on a grid and
+    inverting that table with linear interpolation.
+
+    The table has to be built per N: at small N the excess links use up a
+    large share of the gap-1 candidate pairs, which pushes extra links onto
+    other gaps and raises q at a given T. The drift is below ~0.002 for
+    N >= 1000, so one table at N=1000 can serve every larger N.
+
+    The per-graph spread of q shrinks like 1/sqrt(N), so the number of
+    graphs per grid point is scaled as ~10,000/N, which keeps the error on
+    each median near 0.0025 at every N.
+
+    Args:
+        q: target incoherence, scalar or array.
+        N, b, c: graph parameters, as passed to create_new.
+        rng: numpy.random.Generator used for all random draws.
+        T_grid: increasing T values to tabulate. The default covers
+            q from 0 to ~0.26; widen it for larger targets.
+
+    Returns:
+        T for each target q (same shape as q).
+    '''
+    M = max(3, round(10_000 / N))
+    q_table = np.array([
+        np.median([trophic_coherence(create_new(N, b, c, T, rng)[0])['trophic_incoherence']
+                   for _ in range(M)])
+        for T in T_grid
+    ])
+
+    # np.interp needs strictly increasing xp: drop noise-induced dips, then
+    # keep only the last point of each tied run (e.g. the leading q=0
+    # plateau at small T)
+    q_table = np.maximum.accumulate(q_table)
+    last_of_run = np.r_[q_table[1:] > q_table[:-1], True]
+    q_table, T_grid = q_table[last_of_run], T_grid[last_of_run]
+
+    if np.any(np.asarray(q) > q_table[-1]):
+        raise ValueError(
+            f"target q up to {np.max(q):.3f} exceeds the max tabulated q "
+            f"{q_table[-1]:.3f} at N={N}; extend T_grid")
+    return np.interp(q, q_table, T_grid)
 
 
 def largest_connected_component(G):
