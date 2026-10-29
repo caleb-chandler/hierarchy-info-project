@@ -6,7 +6,12 @@ from scipy.sparse import csr_matrix, diags, eye as speye
 from scipy.sparse.linalg import ArpackNoConvergence
 
 
-def build_weight_matrix(G: nx.DiGraph, alpha: float) -> csr_matrix:
+def build_weight_matrix(
+    G: nx.DiGraph,
+    alpha: float,
+    sources: NDArray[np.int_] | None = None,
+    gamma: float | None = None,
+) -> csr_matrix:
     """
     Construct a row-stochastic DeGroot weight matrix from a GPPM graph.
 
@@ -20,6 +25,20 @@ def build_weight_matrix(G: nx.DiGraph, alpha: float) -> csr_matrix:
     explicit reciprocal get weight 1 in both directions. Every node also
     weights itself at 1 (self-loop).
 
+    If `sources` is given, an environment node is appended at index N.
+    It models external information the group should align with: its row
+    is only its self-loop, so its opinion never changes, and each source
+    node i gives it exactly a `gamma` share of its row: with R_i the raw
+    weight i places on everything else (self-loop plus neighbors), the
+    environment gets raw weight R_i * gamma/(1-gamma), so after row
+    normalization W[i, env] = gamma and i's other weights keep their
+    proportions, scaled by (1-gamma). The environment node is the only
+    absorbing state, so
+    |λ₂| of W is the spectral radius of the real-node block, and
+    compute_spectral_gap's predicted time becomes the time for every node
+    to come within δ of the environment's opinion. G itself (and hence
+    trophic levels and q) is untouched.
+
     Parameters
     ----------
     G : nx.DiGraph
@@ -28,10 +47,17 @@ def build_weight_matrix(G: nx.DiGraph, alpha: float) -> csr_matrix:
     alpha : float
         Influence multiplier applied to a junior node's weighting of the
         senior node its edge points to.
+    sources : array of int, optional
+        Node ids (0..N-1) that receive input from the environment node.
+        None (default) omits the environment node entirely.
+    gamma : float in (0, 1)
+        Share of each source node's attention given to the environment
+        node. Required when `sources` is given.
 
     Returns
     -------
-    W : (N, N) sparse CSR row-stochastic matrix
+    W : (N, N) sparse CSR row-stochastic matrix, or (N+1, N+1) with the
+        environment node as the last row/column when `sources` is given.
         W[i,j] is the weight agent i places on agent j's opinion.
     """
     N = G.number_of_nodes()
@@ -47,8 +73,31 @@ def build_weight_matrix(G: nx.DiGraph, alpha: float) -> csr_matrix:
             cols.append(v)
             vals.append(1.0)
 
-    A = csr_matrix((vals, (rows, cols)), shape=(N, N))
-    A = A + speye(N, format='csr')  # self-weight = 1
+    size = N
+    if sources is not None:
+        sources = np.unique(np.asarray(sources, dtype=int))
+        if len(sources) == 0:
+            raise ValueError(
+                "sources is empty; pass None to omit the environment node")
+        if sources[0] < 0 or sources[-1] >= N:
+            raise ValueError(f"source ids must lie in 0..{N - 1}")
+        if gamma is None or not 0 < gamma < 1:
+            raise ValueError(
+                f"gamma must lie in (0, 1) when sources are given, got {gamma}")
+        # raw row sum before the env entry: neighbors plus the self-loop
+        # of 1 added below
+        rest = 1 + np.bincount(np.asarray(rows, dtype=int),
+                               weights=vals, minlength=N)
+        # sizing the env entry at rest * gamma/(1-gamma) makes it exactly
+        # a gamma share of the normalized row; the environment's own row
+        # gets only the self-loop added below
+        rows += sources.tolist()
+        cols += [N] * len(sources)
+        vals += (rest[sources] * gamma / (1 - gamma)).tolist()
+        size = N + 1
+
+    A = csr_matrix((vals, (rows, cols)), shape=(size, size))
+    A = A + speye(size, format='csr')  # self-weight = 1
 
     row_sums = np.asarray(A.sum(axis=1)).ravel()
     assert np.all(
@@ -149,7 +198,9 @@ def simulate_degroot(
     W : (N, N) sparse row-stochastic matrix
         Weight matrix from build_weight_matrix().
     x0 : (N,) array
-        Initial opinions, typically drawn from Uniform(0, 1).
+        Initial opinions, typically drawn from Uniform(0, 1). If W has an
+        environment node, its fixed opinion is the last entry, and
+        max(x) - min(x) then bounds every node's distance from it.
     max_steps : int
         Safety cap on iterations.
     threshold : float
@@ -282,7 +333,12 @@ def compute_spectral_gap(W: csr_matrix) -> dict:
     }
 
 
-def run_trial(G: nx.DiGraph, alpha: float) -> dict:
+def run_trial(
+    G: nx.DiGraph,
+    alpha: float,
+    sources: NDArray[np.int_] | None = None,
+    gamma: float | None = None,
+) -> dict:
     """
     Convenience function: build the weight matrix for a GPPM graph at a
     given alpha, and compute its spectral gap and trophic coherence.
@@ -294,13 +350,20 @@ def run_trial(G: nx.DiGraph, alpha: float) -> dict:
         restricted to its largest connected component).
     alpha : float
         Influence multiplier for asymmetric edges.
+    sources : array of int, optional
+        Nodes seeded by the environment node (see build_weight_matrix).
+        With sources, the predicted convergence time is the time to align
+        with the environment rather than to internal consensus.
+    gamma : float in (0, 1)
+        Share of each source node's attention given to the environment
+        node (see build_weight_matrix). Required when `sources` is given.
 
     Returns
     -------
     dict combining outputs of compute_spectral_gap() and
     trophic_coherence().
     """
-    W = build_weight_matrix(G, alpha)
+    W = build_weight_matrix(G, alpha, sources=sources, gamma=gamma)
     spectral_results = compute_spectral_gap(W)
     trophic_results = trophic_coherence(G)
 
