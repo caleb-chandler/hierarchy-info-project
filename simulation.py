@@ -16,7 +16,7 @@ params = {
     'N_MAX': 10_000,
     'N_SIZES': 20,
     'SPACING': 'log',
-    'Q_RANGE': np.geomspace(0.05, 1.0, 15),
+    'Q_RANGE': np.geomspace(0.05, 1.25, 15),
     'M': 20,
     'SEED': 21
 }
