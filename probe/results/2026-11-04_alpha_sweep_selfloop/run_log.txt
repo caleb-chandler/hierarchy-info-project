@@ -1,0 +1,15 @@
+﻿  graphs 50/594  316s
+  graphs 100/594  400s
+  graphs 150/594  440s
+  graphs 200/594  466s
+  graphs 250/594  480s
+  graphs 300/594  491s
+  graphs 350/594  502s
+  graphs 400/594  507s
+  graphs 450/594  513s
+  graphs 500/594  518s
+  graphs 550/594  521s
+  graphs 594/594  523s
+alpha.csv: 4752 rows, 0 errors
+lognormal.csv: 5832 rows, 0 errors
+done, 523s

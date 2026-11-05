@@ -1,0 +1,49 @@
+[2026-10-29 03:25:43] start: out_dir=C:\Users\User\Documents\research\h+i\results\2026-10-29_ruleB_pyramid_weights, keep-awake=on
+[2026-10-29 03:25:43] phase 1 (calibration + test 1): 1660 tasks on 9 workers
+[2026-10-29 03:25:50] phase 1 (calibration + test 1): 1/1660 tasks, 0.1 min elapsed, ~190.0 min left (rough)
+[2026-10-29 03:26:34] calibration D=4 N=1000 saved: q from 0.000 to 1.316
+[2026-10-29 03:26:47] calibration D=6 N=1000 saved: q from 0.000 to 1.496
+[2026-10-29 03:26:50] phase 1 (calibration + test 1): 337/1660 tasks, 1.1 min elapsed, ~4.4 min left (rough)
+[2026-10-29 03:26:58] calibration D=8 N=1000 saved: q from 0.000 to 1.606
+[2026-10-29 03:27:10] calibration D=10 N=1000 saved: q from 0.000 to 1.577
+[2026-10-29 03:27:23] calibration D=12 N=1000 saved: q from 0.000 to 1.573
+[2026-10-29 03:27:36] calibration D=8 N=886 saved: q from 0.000 to 1.578
+[2026-10-29 03:27:47] calibration D=8 N=695 saved: q from 0.000 to 1.580
+[2026-10-29 03:27:50] phase 1 (calibration + test 1): 691/1660 tasks, 2.1 min elapsed, ~3.0 min left (rough)
+[2026-10-29 03:27:59] calibration D=8 N=546 saved: q from 0.000 to 1.595
+[2026-10-29 03:28:11] calibration D=8 N=428 saved: q from 0.000 to 1.564
+[2026-10-29 03:28:23] calibration D=8 N=336 saved: q from 0.000 to 1.562
+[2026-10-29 03:28:34] calibration D=4 N=300 saved: q from 0.000 to 1.288
+[2026-10-29 03:28:48] calibration D=6 N=300 saved: q from 0.000 to 1.504
+[2026-10-29 03:28:50] phase 1 (calibration + test 1): 1062/1660 tasks, 3.1 min elapsed, ~1.8 min left (rough)
+[2026-10-29 03:29:01] calibration D=8 N=300 saved: q from 0.000 to 1.572
+[2026-10-29 03:29:13] calibration D=10 N=300 saved: q from 0.000 to 1.577
+[2026-10-29 03:29:25] calibration D=12 N=300 saved: q from 0.000 to 1.562
+[2026-10-29 03:29:39] calibration D=8 N=264 saved: q from 0.000 to 1.567
+[2026-10-29 03:29:50] phase 1 (calibration + test 1): 1382/1660 tasks, 4.1 min elapsed, ~0.8 min left (rough)
+[2026-10-29 03:29:52] calibration D=8 N=207 saved: q from 0.000 to 1.590
+[2026-10-29 03:30:04] calibration D=8 N=162 saved: q from 0.000 to 1.567
+[2026-10-29 03:30:16] calibration D=8 N=127 saved: q from 0.000 to 1.579
+[2026-10-29 03:30:29] calibration D=8 N=100 saved: q from 0.000 to 1.542
+[2026-10-29 03:30:29] phase 1 (calibration + test 1): 1660/1660 tasks, 4.8 min elapsed, ~0.0 min left (rough)
+[2026-10-29 03:30:29] phase 2 (tests 2-4): 4600 tasks on 9 workers
+[2026-10-29 03:30:37] phase 2 (tests 2-4): 1/4600 tasks, 0.1 min elapsed, ~568.2 min left (rough)
+[2026-10-29 03:31:58] phase 2 (tests 2-4): 101/4600 tasks, 1.5 min elapsed, ~66.0 min left (rough)
+[2026-10-29 03:33:11] phase 2 (tests 2-4): 113/4600 tasks, 2.7 min elapsed, ~107.0 min left (rough)
+[2026-10-29 03:34:13] phase 2 (tests 2-4): 129/4600 tasks, 3.7 min elapsed, ~129.3 min left (rough)
+[2026-10-29 03:35:14] phase 2 (tests 2-4): 149/4600 tasks, 4.7 min elapsed, ~141.6 min left (rough)
+[2026-10-29 03:36:16] phase 2 (tests 2-4): 167/4600 tasks, 5.8 min elapsed, ~153.5 min left (rough)
+[2026-10-29 03:37:17] phase 2 (tests 2-4): 264/4600 tasks, 6.8 min elapsed, ~111.5 min left (rough)
+[2026-10-29 03:38:17] phase 2 (tests 2-4): 419/4600 tasks, 7.8 min elapsed, ~77.8 min left (rough)
+[2026-10-29 03:39:18] phase 2 (tests 2-4): 541/4600 tasks, 8.8 min elapsed, ~66.1 min left (rough)
+[2026-10-29 03:40:20] phase 2 (tests 2-4): 568/4600 tasks, 9.8 min elapsed, ~69.9 min left (rough)
+[2026-10-29 03:41:21] phase 2 (tests 2-4): 607/4600 tasks, 10.9 min elapsed, ~71.4 min left (rough)
+[2026-10-29 03:42:21] phase 2 (tests 2-4): 740/4600 tasks, 11.9 min elapsed, ~61.9 min left (rough)
+[2026-10-29 03:43:21] phase 2 (tests 2-4): 812/4600 tasks, 12.9 min elapsed, ~60.0 min left (rough)
+[2026-10-29 03:44:21] phase 2 (tests 2-4): 957/4600 tasks, 13.9 min elapsed, ~52.8 min left (rough)
+[2026-10-29 03:45:21] phase 2 (tests 2-4): 1183/4600 tasks, 14.9 min elapsed, ~42.9 min left (rough)
+[2026-10-29 03:46:21] phase 2 (tests 2-4): 1570/4600 tasks, 15.9 min elapsed, ~30.6 min left (rough)
+[2026-10-29 03:47:22] phase 2 (tests 2-4): 2070/4600 tasks, 16.9 min elapsed, ~20.6 min left (rough)
+[2026-10-29 03:48:22] phase 2 (tests 2-4): 3324/4600 tasks, 17.9 min elapsed, ~6.9 min left (rough)
+[2026-10-29 03:48:44] phase 2 (tests 2-4): 4600/4600 tasks, 18.2 min elapsed, ~0.0 min left (rough)
+[2026-10-29 03:48:44] finished, no failures

@@ -1,0 +1,20 @@
+[2026-11-04 17:46:16] start: out_dir=C:\Users\User\Documents\research\h+i\results\2026-11-04_ruleB_selftie1, keep-awake=on
+[2026-11-04 17:46:16] phase 1 (calibration + test 1): 400 tasks on 9 workers
+[2026-11-04 17:46:23] phase 1 (calibration + test 1): 1/400 tasks, 0.1 min elapsed, ~51.6 min left (rough)
+[2026-11-04 17:47:04] phase 1 (calibration + test 1): 400/400 tasks, 0.8 min elapsed, ~0.0 min left (rough)
+[2026-11-04 17:47:04] phase 2 (tests 2-4): 4600 tasks on 9 workers
+[2026-11-04 17:47:12] phase 2 (tests 2-4): 1/4600 tasks, 0.1 min elapsed, ~598.8 min left (rough)
+[2026-11-04 17:48:15] phase 2 (tests 2-4): 112/4600 tasks, 1.2 min elapsed, ~47.4 min left (rough)
+[2026-11-04 17:49:16] phase 2 (tests 2-4): 168/4600 tasks, 2.2 min elapsed, ~57.7 min left (rough)
+[2026-11-04 17:50:16] phase 2 (tests 2-4): 287/4600 tasks, 3.2 min elapsed, ~47.9 min left (rough)
+[2026-11-04 17:51:16] phase 2 (tests 2-4): 414/4600 tasks, 4.2 min elapsed, ~42.4 min left (rough)
+[2026-11-04 17:52:17] phase 2 (tests 2-4): 552/4600 tasks, 5.2 min elapsed, ~38.2 min left (rough)
+[2026-11-04 17:53:17] phase 2 (tests 2-4): 676/4600 tasks, 6.2 min elapsed, ~36.1 min left (rough)
+[2026-11-04 17:54:17] phase 2 (tests 2-4): 823/4600 tasks, 7.2 min elapsed, ~33.1 min left (rough)
+[2026-11-04 17:55:17] phase 2 (tests 2-4): 1044/4600 tasks, 8.2 min elapsed, ~28.0 min left (rough)
+[2026-11-04 17:56:17] phase 2 (tests 2-4): 1400/4600 tasks, 9.2 min elapsed, ~21.1 min left (rough)
+[2026-11-04 17:57:17] phase 2 (tests 2-4): 1769/4600 tasks, 10.2 min elapsed, ~16.4 min left (rough)
+[2026-11-04 17:58:17] phase 2 (tests 2-4): 2558/4600 tasks, 11.2 min elapsed, ~9.0 min left (rough)
+[2026-11-04 17:59:17] phase 2 (tests 2-4): 4593/4600 tasks, 12.2 min elapsed, ~0.0 min left (rough)
+[2026-11-04 17:59:18] phase 2 (tests 2-4): 4600/4600 tasks, 12.2 min elapsed, ~0.0 min left (rough)
+[2026-11-04 17:59:18] finished, no failures
